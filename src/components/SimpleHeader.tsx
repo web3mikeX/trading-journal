@@ -1,6 +1,7 @@
 "use client"
 
-import { useAuth } from "@/components/SimpleAuth"
+import { useAuth } from "@/hooks/useAuth"
+import { signOut } from "next-auth/react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -14,8 +15,12 @@ import {
 } from "lucide-react"
 
 export default function SimpleHeader() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const pathname = usePathname()
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: "/auth/signin" })
+  }
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
@@ -75,7 +80,7 @@ export default function SimpleHeader() {
               </span>
             </div>
             <button
-              onClick={logout}
+              onClick={handleSignOut}
               className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
             >
               <LogOutIcon className="w-4 h-4" />

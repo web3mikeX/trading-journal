@@ -1,6 +1,6 @@
 "use client"
 
-import { AuthProvider } from "@/components/SimpleAuth"
+import AuthProvider from "@/components/AuthProvider"
 import { ReactNode } from "react"
 
 interface ClientAuthProviderProps {

@@ -4,6 +4,8 @@ import { motion } from "framer-motion"
 import { ArrowUpIcon, ArrowDownIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
+import { useTheme } from "@/components/ThemeProvider"
+import { getThemeClasses } from "@/lib/theme"
 
 interface Trade {
   id: string
@@ -20,20 +22,29 @@ interface RecentTradesProps {
 }
 
 export default function RecentTrades({ trades }: RecentTradesProps) {
+  const { theme } = useTheme()
+  const themeClasses = getThemeClasses(theme)
+  const isDark = theme === 'dark'
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.3 }}
     >
-      <Card className="border-white/20 bg-white/10 backdrop-blur-xl">
+      <Card className={themeClasses.surface}>
         <CardHeader>
-          <CardTitle className="text-white">Recent Trades</CardTitle>
+          <h3 
+            className={`font-semibold leading-none tracking-tight ${isDark ? "text-white" : "text-black"}`}
+            style={!isDark ? { color: '#000000 !important', fontWeight: 'bold' } : { color: 'white' }}
+          >
+            Recent Trades
+          </h3>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {trades.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">
+              <p className={`${themeClasses.textSecondary} text-center py-8`}>
                 No trades yet. Start by adding your first trade!
               </p>
             ) : (
@@ -43,7 +54,11 @@ export default function RecentTrades({ trades }: RecentTradesProps) {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="flex items-center justify-between p-4 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  className={`flex items-center justify-between p-4 rounded-lg transition-colors ${
+                    isDark 
+                      ? "bg-white/5 hover:bg-white/10" 
+                      : "bg-gray-100/50 hover:bg-gray-100"
+                  }`}
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`p-2 rounded-full ${
@@ -58,8 +73,8 @@ export default function RecentTrades({ trades }: RecentTradesProps) {
                       )}
                     </div>
                     <div>
-                      <p className="font-medium text-white">{trade.symbol}</p>
-                      <p className="text-sm text-gray-400">
+                      <p className={`font-medium ${themeClasses.text}`}>{trade.symbol}</p>
+                      <p className={`text-sm ${themeClasses.textSecondary}`}>
                         {formatDate(trade.entryDate)}
                       </p>
                     </div>

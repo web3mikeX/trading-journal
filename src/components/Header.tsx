@@ -12,12 +12,46 @@ import {
   SettingsIcon,
   LogOutIcon
 } from "lucide-react"
+import ThemeToggle from "./ThemeToggle"
+import { useTheme } from "./ThemeProvider"
+import { getThemeClasses } from "@/lib/theme"
 
 export default function Header() {
   const { data: session } = useSession()
   const pathname = usePathname()
+  const { theme } = useTheme()
+  const themeClasses = getThemeClasses(theme)
 
-  if (!session) return null
+  // Show header even when session is loading, but hide nav items
+  if (!session) {
+    return (
+      <motion.header
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className={`relative z-20 backdrop-blur-xl ${
+          theme === 'light' 
+            ? 'border-b border-gray-200/50 bg-white/80' 
+            : 'border-b border-white/10 bg-black/20'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <Link href="/dashboard" className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <TrendingUpIcon className="w-5 h-5 text-white" />
+              </div>
+              <span className={`text-xl font-bold ${themeClasses.text}`}>TradingJournal</span>
+            </Link>
+            
+            <div className="flex items-center space-x-4">
+              <ThemeToggle variant="header" />
+            </div>
+          </div>
+        </div>
+      </motion.header>
+    )
+  }
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: HomeIcon },
@@ -32,7 +66,11 @@ export default function Header() {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className="relative z-20 border-b border-white/10 bg-black/20 backdrop-blur-xl"
+      className={`relative z-20 backdrop-blur-xl ${
+        theme === 'light' 
+          ? 'border-b border-gray-200/50 bg-white/80' 
+          : 'border-b border-white/10 bg-black/20'
+      }`}
     >
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-16">
@@ -41,7 +79,7 @@ export default function Header() {
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                 <TrendingUpIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-white">TradingJournal</span>
+              <span className={`text-xl font-bold ${themeClasses.text}`}>TradingJournal</span>
             </Link>
             
             <nav className="hidden md:flex space-x-1">
@@ -53,8 +91,8 @@ export default function Header() {
                     href={item.href}
                     className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                       isActive
-                        ? "bg-white/20 text-white"
-                        : "text-gray-300 hover:text-white hover:bg-white/10"
+                        ? (theme === 'light' ? 'bg-gray-100 text-gray-900' : 'bg-white/20 text-white')
+                        : (theme === 'light' ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/50' : 'text-gray-300 hover:text-white hover:bg-white/10')
                     }`}
                   >
                     <item.icon className="w-4 h-4" />
@@ -72,13 +110,18 @@ export default function Header() {
                   {session.user?.name?.[0] || session.user?.email?.[0] || "U"}
                 </span>
               </div>
-              <span className="text-sm text-gray-300">
+              <span className={`text-sm ${themeClasses.textSecondary}`}>
                 {session.user?.name || session.user?.email}
               </span>
             </div>
+            <ThemeToggle variant="header" />
             <button
               onClick={() => signOut({ callbackUrl: '/auth/signin' })}
-              className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                theme === 'light' 
+                  ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/50'
+                  : 'text-gray-300 hover:text-white hover:bg-white/10'
+              }`}
             >
               <LogOutIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Sign out</span>
