@@ -6,23 +6,27 @@ import { useAuth } from "@/hooks/useAuth"
 import { motion } from "framer-motion"
 import { 
   PlusIcon, 
-  DownloadIcon,
   SearchIcon,
   ArrowUpIcon,
   ArrowDownIcon,
   TrendingUpIcon,
   TrendingDownIcon,
   EditIcon,
-  TrashIcon
+  TrashIcon,
+  FileTextIcon,
+  FileSpreadsheetIcon
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Header from "@/components/Header"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useTrades } from "@/hooks/useTrades"
+import { useStats } from "@/hooks/useStats"
 import AddTradeModal from "@/components/AddTradeModal"
 import EditTradeModal from "@/components/EditTradeModal"
+import ExportButton from "@/components/ExportButton"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
+import { exportTradesToCSV, exportTradesToPDF } from "@/lib/exports"
 
 function TradesContent() {
   const { theme } = useTheme()
@@ -36,6 +40,7 @@ function TradesContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedTrade, setSelectedTrade] = useState<any>(null)
   const { trades, loading, error, addTrade, updateTrade, deleteTrade } = useTrades(user?.id || '')
+  const { stats } = useStats(user?.id || '')
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -157,10 +162,23 @@ function TradesContent() {
                   <PlusIcon className="w-4 h-4" />
                   <span>Add Trade</span>
                 </button>
-                <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                  <DownloadIcon className="w-4 h-4" />
-                  <span>Export</span>
-                </button>
+                <ExportButton
+                  options={[
+                    {
+                      id: 'csv',
+                      label: 'Export CSV',
+                      icon: FileSpreadsheetIcon,
+                      action: () => exportTradesToCSV(filteredTrades)
+                    },
+                    {
+                      id: 'pdf',
+                      label: 'Export PDF',
+                      icon: FileTextIcon,
+                      action: () => stats && exportTradesToPDF(filteredTrades, stats)
+                    }
+                  ]}
+                  disabled={filteredTrades.length === 0}
+                />
               </div>
             </div>
           </motion.div>
