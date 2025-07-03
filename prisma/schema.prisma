@@ -1,0 +1,219 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Trading profile
+  baseCurrency     String  @default("USD")
+  initialBalance   Float @default(10000)
+  riskPercentage   Float @default(2)
+  timezone         String  @default("UTC")
+  tradingStyle     String? // "Day Trader", "Swing Trader", "Position Trader"
+  experience       String? // "Beginner", "Intermediate", "Advanced", "Professional"
+
+  accounts      Account[]
+  sessions      Session[]
+  trades        Trade[]
+  journalEntries JournalEntry[]
+  tradingGoals  TradingGoal[]
+  tags          Tag[]
+
+  @@map("users")
+}
+
+model Trade {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Basic trade info
+  symbol         String
+  side           TradeType // "LONG" or "SHORT"
+  strategy       String?
+  setup          String?
+  market         String    @default("STOCK") // "STOCK", "FOREX", "CRYPTO", "FUTURES", "OPTIONS"
+  
+  // Entry details
+  entryDate      DateTime
+  entryPrice     Float
+  quantity       Float
+  entryFees      Float     @default(0)
+  
+  // Exit details (optional for open positions)
+  exitDate       DateTime?
+  exitPrice      Float?
+  exitFees       Float     @default(0)
+  
+  // Risk management
+  stopLoss       Float?
+  takeProfit     Float?
+  riskAmount     Float?
+  
+  // Performance calculations
+  grossPnL       Float?
+  netPnL         Float?
+  commission     Float     @default(0)
+  swap           Float     @default(0)
+  returnPercent  Float?
+  
+  // Trade metadata
+  status         TradeStatus @default(OPEN) // "OPEN", "CLOSED", "CANCELLED"
+  notes          String?
+  screenshots    String?     // JSON array of screenshot URLs
+  
+  // Relationships
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+  tags           TradeTag[]
+
+  @@index([userId, entryDate])
+  @@index([userId, symbol])
+  @@index([userId, status])
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  tradeId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  title        String
+  content      String
+  entryType    JournalType @default(GENERAL) // "PRE_TRADE", "DURING_TRADE", "POST_TRADE", "GENERAL", "LESSON"
+  mood         Int?       // 1-5 scale
+  confidence   Int?       // 1-5 scale
+  
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade Trade? @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, entryType])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  name        String
+  color       String   @default("#3B82F6")
+  description String?
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades TradeTag[]
+
+  @@unique([userId, name])
+}
+
+model TradeTag {
+  tradeId String
+  tagId   String
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([tradeId, tagId])
+}
+
+model TradingGoal {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  title          String
+  description    String?
+  targetValue    Float?
+  currentValue   Float     @default(0)
+  targetDate     DateTime?
+  goalType       GoalType  // "PROFIT_TARGET", "WIN_RATE", "MAX_DRAWDOWN", "TRADE_COUNT", "CUSTOM"
+  status         GoalStatus @default(ACTIVE) // "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"
+  isCompleted    Boolean   @default(false)
+  completedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+enum TradeType {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum JournalType {
+  PRE_TRADE
+  DURING_TRADE
+  POST_TRADE
+  GENERAL
+  LESSON
+}
+
+enum GoalType {
+  PROFIT_TARGET
+  WIN_RATE
+  MAX_DRAWDOWN
+  TRADE_COUNT
+  CUSTOM
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
