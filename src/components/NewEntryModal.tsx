@@ -17,6 +17,8 @@ interface NewEntryModalProps {
     entryType: 'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON';
     mood?: number;
     confidence?: number;
+    fear?: number;
+    excitement?: number;
     tradeId?: string;
   }) => void
 }
@@ -32,6 +34,8 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
   const [entryType, setEntryType] = useState<'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON'>('GENERAL')
   const [mood, setMood] = useState<number | undefined>(undefined)
   const [confidence, setConfidence] = useState<number | undefined>(undefined)
+  const [fear, setFear] = useState<number | undefined>(undefined)
+  const [excitement, setExcitement] = useState<number | undefined>(undefined)
   const [tradeId, setTradeId] = useState<string | undefined>(undefined)
 
   const handleSave = () => {
@@ -42,6 +46,8 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
         entryType,
         mood,
         confidence,
+        fear,
+        excitement,
         tradeId
       })
       resetForm()
@@ -55,6 +61,8 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
     setEntryType('GENERAL')
     setMood(undefined)
     setConfidence(undefined)
+    setFear(undefined)
+    setExcitement(undefined)
     setTradeId(undefined)
   }
 
@@ -181,7 +189,7 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>Mood (1-5)</label>
                   {renderStars(mood, setMood)}
@@ -190,6 +198,16 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
                 <div>
                   <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>Confidence (1-5)</label>
                   {renderStars(confidence, setConfidence)}
+                </div>
+
+                <div>
+                  <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>Fear (1-5)</label>
+                  {renderStars(fear, setFear)}
+                </div>
+
+                <div>
+                  <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>Excitement (1-5)</label>
+                  {renderStars(excitement, setExcitement)}
                 </div>
               </div>
             </div>

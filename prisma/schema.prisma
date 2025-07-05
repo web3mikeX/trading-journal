@@ -57,12 +57,15 @@ model User {
   tradingStyle     String? // "Day Trader", "Swing Trader", "Position Trader"
   experience       String? // "Beginner", "Intermediate", "Advanced", "Professional"
 
-  accounts      Account[]
-  sessions      Session[]
-  trades        Trade[]
-  journalEntries JournalEntry[]
-  tradingGoals  TradingGoal[]
-  tags          Tag[]
+  accounts         Account[]
+  sessions         Session[]
+  trades           Trade[]
+  journalEntries   JournalEntry[]
+  tradingGoals     TradingGoal[]
+  tags             Tag[]
+  importJobs       ImportJob[]
+  brokerConnections BrokerConnection[]
+  syncLogs         SyncLog[]
 
   @@map("users")
 }
@@ -107,6 +110,7 @@ model Trade {
   status         TradeStatus @default(OPEN) // "OPEN", "CLOSED", "CANCELLED"
   notes          String?
   screenshots    String?     // JSON array of screenshot URLs
+  dataSource     String      @default("manual") // "manual", "csv", "api", "email"
   
   // Relationships
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -130,6 +134,8 @@ model JournalEntry {
   entryType    JournalType @default(GENERAL) // "PRE_TRADE", "DURING_TRADE", "POST_TRADE", "GENERAL", "LESSON"
   mood         Int?       // 1-5 scale
   confidence   Int?       // 1-5 scale
+  fear         Int?       // 1-5 scale
+  excitement   Int?       // 1-5 scale
   
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   trade Trade? @relation(fields: [tradeId], references: [id], onDelete: Cascade)
@@ -216,4 +222,66 @@ enum GoalStatus {
   COMPLETED
   PAUSED
   CANCELLED
+}
+
+model ImportJob {
+  id            String   @id @default(cuid())
+  userId        String
+  filename      String
+  status        ImportStatus @default(PENDING)
+  totalRows     Int      @default(0)
+  processedRows Int      @default(0)
+  errors        String?  // JSON array of errors
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+}
+
+model BrokerConnection {
+  id            String   @id @default(cuid())
+  userId        String
+  brokerName    String   // 'tradovate', 'robinhood', etc.
+  apiKey        String   // encrypted
+  accountType   String?  // 'demo' or 'live' for Tradovate
+  isActive      Boolean  @default(true)
+  lastSync      DateTime?
+  syncFrequency String   @default("manual") // 'manual', 'hourly', 'daily'
+  settings      String?  // JSON settings
+  createdAt     DateTime @default(now())
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncLogs      SyncLog[]
+  
+  @@index([userId, brokerName])
+}
+
+model SyncLog {
+  id                  String   @id @default(cuid())
+  userId              String
+  brokerConnectionId  String
+  status              SyncStatus @default(SUCCESS)
+  tradesImported      Int      @default(0)
+  errors              String?  // JSON array of errors
+  syncedAt            DateTime @default(now())
+  
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brokerConnection    BrokerConnection @relation(fields: [brokerConnectionId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, syncedAt])
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SyncStatus {
+  SUCCESS
+  ERROR
+  PARTIAL
 }

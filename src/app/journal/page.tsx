@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { PlusIcon, BookOpenIcon, SearchIcon, FilterIcon, HeartIcon, TrendingUpIcon, LinkIcon, FileSpreadsheetIcon } from "lucide-react"
+import { PlusIcon, BookOpenIcon, SearchIcon, FilterIcon, HeartIcon, TrendingUpIcon, LinkIcon, FileSpreadsheetIcon, AlertTriangleIcon, ZapIcon } from "lucide-react"
 import Header from "@/components/Header"
 import NewEntryModal from "@/components/NewEntryModal"
 import ExportButton from "@/components/ExportButton"
@@ -26,6 +26,8 @@ export default function Journal() {
     entryType: 'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON';
     mood?: number;
     confidence?: number;
+    fear?: number;
+    excitement?: number;
     tradeId?: string;
   }) => {
     const result = await createEntry(newEntry)
@@ -198,7 +200,7 @@ export default function Journal() {
                 <p className={`${themeClasses.textSecondary} mb-4 line-clamp-2`}>{entry.content}</p>
                 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 flex-wrap">
                     {entry.mood && (
                       <div className="flex items-center space-x-1">
                         <HeartIcon className="w-4 h-4 text-red-400" />
@@ -212,6 +214,22 @@ export default function Journal() {
                         <TrendingUpIcon className="w-4 h-4 text-green-400" />
                         <span className={`text-sm ${themeClasses.textSecondary}`}>Confidence:</span>
                         {renderStars(entry.confidence)}
+                      </div>
+                    )}
+
+                    {entry.fear && (
+                      <div className="flex items-center space-x-1">
+                        <AlertTriangleIcon className="w-4 h-4 text-orange-400" />
+                        <span className={`text-sm ${themeClasses.textSecondary}`}>Fear:</span>
+                        {renderStars(entry.fear)}
+                      </div>
+                    )}
+
+                    {entry.excitement && (
+                      <div className="flex items-center space-x-1">
+                        <ZapIcon className="w-4 h-4 text-yellow-400" />
+                        <span className={`text-sm ${themeClasses.textSecondary}`}>Excitement:</span>
+                        {renderStars(entry.excitement)}
                       </div>
                     )}
                   </div>

@@ -8,6 +8,8 @@ const createJournalEntrySchema = z.object({
   entryType: z.enum(['PRE_TRADE', 'DURING_TRADE', 'POST_TRADE', 'GENERAL', 'LESSON']).default('GENERAL'),
   mood: z.number().min(1).max(5).optional(),
   confidence: z.number().min(1).max(5).optional(),
+  fear: z.number().min(1).max(5).optional(),
+  excitement: z.number().min(1).max(5).optional(),
   tradeId: z.string().optional(),
   userId: z.string()
 })

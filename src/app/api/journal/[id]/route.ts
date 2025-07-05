@@ -8,6 +8,8 @@ const updateJournalEntrySchema = z.object({
   entryType: z.enum(['PRE_TRADE', 'DURING_TRADE', 'POST_TRADE', 'GENERAL', 'LESSON']).optional(),
   mood: z.number().min(1).max(5).optional(),
   confidence: z.number().min(1).max(5).optional(),
+  fear: z.number().min(1).max(5).optional(),
+  excitement: z.number().min(1).max(5).optional(),
   tradeId: z.string().optional(),
   userId: z.string()
 })
@@ -100,6 +102,8 @@ export async function PUT(
         entryType: validatedData.entryType,
         mood: validatedData.mood,
         confidence: validatedData.confidence,
+        fear: validatedData.fear,
+        excitement: validatedData.excitement,
         tradeId: validatedData.tradeId,
         updatedAt: new Date()
       },

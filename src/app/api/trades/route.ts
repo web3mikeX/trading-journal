@@ -22,6 +22,7 @@ const TradeSchema = z.object({
   commission: z.number().default(0),
   swap: z.number().default(0),
   notes: z.string().optional(),
+  dataSource: z.string().default('manual'),
 })
 
 // Calculate P&L for a trade

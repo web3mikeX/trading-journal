@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tradovate CSV Import Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #007bff;
+        }
+        .upload-area.dragover {
+            border-color: #007bff;
+            background-color: #f0f8ff;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+        }
+        .valid {
+            background-color: #d4edda;
+        }
+        .invalid {
+            background-color: #f8d7da;
+        }
+        .long {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .short {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background-color: #0056b3;
+        }
+        .btn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .error {
+            color: #dc3545;
+            font-size: 12px;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tradovate CSV Import Test</h1>
+        <p>This standalone tool tests the CSV import logic for your Tradovate data with the correct column headers:</p>
+        <p><strong>Expected columns:</strong> Symbol, Qty, Buy Price, Buy Time, Duration, Sell Time, Sell Price, P&L</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>📁 Drop your Tradovate CSV file here or click to select</p>
+            <input type="file" id="fileInput" accept=".csv" style="display: none;">
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const results = document.getElementById('results');
+
+        // File upload handling
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function findColumnValue(row, headers, possibleNames) {
+            for (const name of possibleNames) {
+                let index = headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
+                if (index === -1) {
+                    index = headers.findIndex(h => 
+                        h.toLowerCase().includes(name.toLowerCase()) || 
+                        name.toLowerCase().includes(h.toLowerCase())
+                    );
+                }
+                if (index !== -1 && row[index] !== undefined && row[index] !== null && row[index] !== '') {
+                    return row[index].toString().trim();
+                }
+            }
+            return '';
+        }
+
+        function parseTradeData(data) {
+            const headers = data[0].map(h => h.toLowerCase().trim());
+            const rows = data.slice(1);
+            
+            console.log('Headers found:', headers);
+
+            return rows.map((row, index) => {
+                const trade = {
+                    symbol: '',
+                    side: 'LONG',
+                    entryDate: '',
+                    entryPrice: 0,
+                    quantity: 0,
+                    exitDate: '',
+                    exitPrice: 0,
+                    market: 'FUTURES',
+                    isValid: true,
+                    errors: []
+                };
+
+                // Parse using exact column names from your CSV
+                trade.symbol = findColumnValue(row, headers, ['symbol']);
+                
+                const buyPrice = parseFloat(findColumnValue(row, headers, ['buyprice', 'buy price']) || '0');
+                const sellPrice = parseFloat(findColumnValue(row, headers, ['sellprice', 'sell price']) || '0');
+                const quantity = Math.abs(parseFloat(findColumnValue(row, headers, ['qty']) || '0'));
+                const buyTime = findColumnValue(row, headers, ['boughttimestamp', 'bought timestamp', 'buy time']);
+                const sellTime = findColumnValue(row, headers, ['soldtimestamp', 'sold timestamp', 'sell time']);
+                
+                // Determine trade direction and set entry/exit
+                if (buyTime && sellTime) {
+                    const buyDate = new Date(buyTime);
+                    const sellDate = new Date(sellTime);
+                    
+                    if (buyDate < sellDate) {
+                        // Long trade: bought first, then sold
+                        trade.side = 'LONG';
+                        trade.entryDate = buyDate.toISOString();
+                        trade.entryPrice = buyPrice;
+                        trade.exitDate = sellDate.toISOString();
+                        trade.exitPrice = sellPrice;
+                    } else {
+                        // Short trade: sold first, then bought
+                        trade.side = 'SHORT';
+                        trade.entryDate = sellDate.toISOString();
+                        trade.entryPrice = sellPrice;
+                        trade.exitDate = buyDate.toISOString();
+                        trade.exitPrice = buyPrice;
+                    }
+                } else {
+                    trade.side = 'LONG';
+                    trade.entryDate = buyTime ? new Date(buyTime).toISOString() : '';
+                    trade.entryPrice = buyPrice;
+                }
+                
+                trade.quantity = quantity;
+                
+                // Validation
+                if (!trade.symbol) trade.errors.push('Missing symbol');
+                if (!trade.entryDate) trade.errors.push('Missing entry date');
+                if (!trade.entryPrice || trade.entryPrice <= 0) trade.errors.push('Invalid entry price');
+                if (!trade.quantity || trade.quantity <= 0) trade.errors.push('Invalid quantity');
+                if (!trade.exitDate) trade.errors.push('Missing exit date');
+                if (!trade.exitPrice || trade.exitPrice <= 0) trade.errors.push('Invalid exit price');
+                
+                trade.isValid = trade.errors.length === 0;
+                
+                return trade;
+            }).filter(trade => trade.symbol); // Filter out empty rows
+        }
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                results.innerHTML = '<p class="error">Please select a CSV file.</p>';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const text = e.target.result;
+                    const lines = text.split('\n').filter(line => line.trim());
+                    const data = lines.map(line => {
+                        // Simple CSV parsing - split by comma and clean quotes
+                        return line.split(',').map(cell => cell.trim().replace(/"/g, ''));
+                    });
+
+                    console.log('Raw CSV data:', data);
+
+                    if (data.length < 2) {
+                        results.innerHTML = '<p class="error">CSV file must have at least 2 rows (header + data).</p>';
+                        return;
+                    }
+
+                    const trades = parseTradeData(data);
+                    displayResults(trades, data[0]);
+
+                } catch (error) {
+                    console.error('Error parsing CSV:', error);
+                    results.innerHTML = '<p class="error">Error parsing CSV file. Please check the format.</p>';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function displayResults(trades, headers) {
+            const validTrades = trades.filter(t => t.isValid);
+            const invalidTrades = trades.filter(t => !t.isValid);
+
+            let html = `
+                <h2>Import Results</h2>
+                <p class="success">Found ${trades.length} trades in CSV</p>
+                <p>✅ ${validTrades.length} valid trades</p>
+                ${invalidTrades.length > 0 ? `<p class="error">❌ ${invalidTrades.length} trades with errors</p>` : ''}
+                
+                <h3>CSV Headers Detected:</h3>
+                <p><code>${headers.join(', ')}</code></p>
+                
+                <h3>Parsed Trades:</h3>
+                <table>
+                    <tr>
+                        <th>Status</th>
+                        <th>Symbol</th>
+                        <th>Side</th>
+                        <th>Entry Date</th>
+                        <th>Entry Price</th>
+                        <th>Exit Date</th>
+                        <th>Exit Price</th>
+                        <th>Quantity</th>
+                        <th>Errors</th>
+                    </tr>
+            `;
+
+            trades.forEach((trade, i) => {
+                const rowClass = trade.isValid ? 'valid' : 'invalid';
+                const sideClass = trade.side === 'LONG' ? 'long' : 'short';
+                
+                html += `
+                    <tr class="${rowClass}">
+                        <td>${trade.isValid ? '✅' : '❌'}</td>
+                        <td>${trade.symbol}</td>
+                        <td class="${sideClass}">${trade.side}</td>
+                        <td>${trade.entryDate ? new Date(trade.entryDate).toLocaleString() : ''}</td>
+                        <td>$${trade.entryPrice}</td>
+                        <td>${trade.exitDate ? new Date(trade.exitDate).toLocaleString() : ''}</td>
+                        <td>$${trade.exitPrice}</td>
+                        <td>${trade.quantity}</td>
+                        <td class="error">${trade.errors.join(', ')}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</table>';
+
+            if (validTrades.length > 0) {
+                html += `
+                    <h3>Summary:</h3>
+                    <p>✅ The CSV parsing logic is working correctly!</p>
+                    <p>✅ Your column headers are properly recognized</p>
+                    <p>✅ Ready to import ${validTrades.length} trades into your trading journal</p>
+                `;
+            }
+
+            results.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

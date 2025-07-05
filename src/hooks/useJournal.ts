@@ -8,6 +8,8 @@ interface JournalEntry {
   entryType: 'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON'
   mood?: number
   confidence?: number
+  fear?: number
+  excitement?: number
   tradeId?: string
   createdAt: string
   updatedAt: string
@@ -27,6 +29,8 @@ interface CreateJournalEntryData {
   entryType?: 'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON'
   mood?: number
   confidence?: number
+  fear?: number
+  excitement?: number
   tradeId?: string
 }
 
@@ -36,6 +40,8 @@ interface UpdateJournalEntryData {
   entryType?: 'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON'
   mood?: number
   confidence?: number
+  fear?: number
+  excitement?: number
   tradeId?: string
 }
 
