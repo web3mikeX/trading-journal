@@ -35,6 +35,9 @@ interface ParsedTrade {
   notes?: string
   netPnL?: number
   grossPnL?: number
+  returnPercent?: number
+  status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  dataSource?: string
   isValid: boolean
   errors: string[]
 }
@@ -191,73 +194,117 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         const netPnL = parsePnL(pnlString)
         
         console.log('Tradovate parsing debug:', {
-          buyPrice, sellPrice, quantity, buyTime, sellTime, pnlString, netPnL,
-          headers, row
+          symbol: trade.symbol, buyPrice, sellPrice, quantity, buyTime, sellTime, pnlString, netPnL
         })
         
-        // For Tradovate, we have complete round-trip trades
-        // Parse dates - Tradovate uses MM/DD/YYYY HH:MM:SS format
-        if (buyTime && sellTime) {
-          const buyDate = new Date(buyTime)
-          const sellDate = new Date(sellTime)
-          
-          console.log('Date parsing:', { buyTime, sellTime, buyDate, sellDate })
-          
-          // For futures trading, determine trade direction based on entry/exit logic
-          // In Tradovate exports, sometimes the timestamps can be out of order due to execution timing
-          // We'll use a more reliable method: assume long trades are more common and use price comparison as backup
-          
-          const timeDiff = buyDate.getTime() - sellDate.getTime()
-          
-          if (Math.abs(timeDiff) < 60000) {
-            // If trades are within 1 minute, use price movement to determine direction
-            if (sellPrice > buyPrice) {
-              // Profitable long trade
-              trade.side = 'LONG'
-              trade.entryDate = buyDate.toISOString()
-              trade.entryPrice = buyPrice
-              trade.exitDate = sellDate.toISOString()
-              trade.exitPrice = sellPrice
-            } else {
-              // Could be short trade or losing long trade - default to long
-              trade.side = 'LONG'
-              trade.entryDate = buyDate.toISOString()
-              trade.entryPrice = buyPrice
-              trade.exitDate = sellDate.toISOString()
-              trade.exitPrice = sellPrice
+        // Enhanced Tradovate date parsing - handle MM/dd/yyyy HH:mm:ss format
+        const parseTradovateDate = (dateStr: string): Date | null => {
+          if (!dateStr) return null
+          try {
+            // Tradovate format: "06/09/2025 23:43:53"
+            // First try direct parsing
+            let date = new Date(dateStr)
+            if (!isNaN(date.getTime())) {
+              return date
             }
-          } else if (buyDate < sellDate) {
-            // Clear long trade: bought first, then sold
+            
+            // If that fails, try manual parsing for MM/dd/yyyy HH:mm:ss
+            const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2}):(\d{1,2})/)
+            if (match) {
+              const [, month, day, year, hour, minute, second] = match
+              date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 
+                              parseInt(hour), parseInt(minute), parseInt(second))
+              return !isNaN(date.getTime()) ? date : null
+            }
+            return null
+          } catch (error) {
+            console.error('Date parsing error:', error, 'for date:', dateStr)
+            return null
+          }
+        }
+        
+        // Parse dates with enhanced logic
+        const buyDate = parseTradovateDate(buyTime)
+        const sellDate = parseTradovateDate(sellTime)
+        
+        console.log('Enhanced date parsing:', { 
+          buyTime, sellTime, 
+          buyDate: buyDate?.toISOString(), 
+          sellDate: sellDate?.toISOString() 
+        })
+        
+        // Enhanced side detection for Tradovate round-trip trades
+        if (buyDate && sellDate && buyPrice > 0 && sellPrice > 0) {
+          // Determine trade direction based on chronological order and P&L
+          if (buyDate.getTime() < sellDate.getTime()) {
+            // Buy happened first, then sell = LONG trade
             trade.side = 'LONG'
             trade.entryDate = buyDate.toISOString()
             trade.entryPrice = buyPrice
             trade.exitDate = sellDate.toISOString()
             trade.exitPrice = sellPrice
-          } else {
-            // Short trade: sold first, then bought (cover)
+          } else if (sellDate.getTime() < buyDate.getTime()) {
+            // Sell happened first, then buy back = SHORT trade
             trade.side = 'SHORT'
             trade.entryDate = sellDate.toISOString()
             trade.entryPrice = sellPrice
             trade.exitDate = buyDate.toISOString()
             trade.exitPrice = buyPrice
+          } else {
+            // Same timestamp - use P&L to determine direction
+            // If sellPrice > buyPrice and P&L positive, likely LONG
+            // If buyPrice > sellPrice and P&L positive, likely SHORT
+            if (netPnL > 0) {
+              trade.side = sellPrice > buyPrice ? 'LONG' : 'SHORT'
+            } else {
+              trade.side = sellPrice < buyPrice ? 'LONG' : 'SHORT'
+            }
+            
+            if (trade.side === 'LONG') {
+              trade.entryDate = buyDate.toISOString()
+              trade.entryPrice = buyPrice
+              trade.exitDate = sellDate.toISOString()
+              trade.exitPrice = sellPrice
+            } else {
+              trade.entryDate = sellDate.toISOString()
+              trade.entryPrice = sellPrice
+              trade.exitDate = buyDate.toISOString()
+              trade.exitPrice = buyPrice
+            }
           }
         } else {
-          // Fallback if timestamps are missing - treat as long trade
+          // Fallback if dates are invalid
+          trade.errors.push('Invalid buy/sell timestamps')
           trade.side = 'LONG'
-          trade.entryDate = buyTime ? new Date(buyTime).toISOString() : (sellTime ? new Date(sellTime).toISOString() : '')
-          trade.entryPrice = buyPrice || sellPrice
-          trade.exitDate = sellTime ? new Date(sellTime).toISOString() : (buyTime ? new Date(buyTime).toISOString() : '')
-          trade.exitPrice = sellPrice || buyPrice
+          trade.entryDate = buyTime || sellTime || ''
+          trade.entryPrice = buyPrice || sellPrice || 0
+          if (sellTime) {
+            trade.exitDate = sellTime
+            trade.exitPrice = sellPrice
+          }
         }
         
         trade.quantity = quantity
         trade.market = 'FUTURES'
         
-        // Add P&L data if available
-        if (netPnL !== 0) {
+        // Enhanced P&L handling with validation
+        if (netPnL !== undefined && netPnL !== 0) {
           trade.netPnL = netPnL
-          trade.grossPnL = netPnL // For Tradovate, this is already net after fees
+          trade.grossPnL = netPnL // For Tradovate, this is net after fees
+          
+          // Calculate return percentage if possible
+          if (trade.entryPrice > 0 && trade.quantity > 0) {
+            const notionalValue = trade.entryPrice * trade.quantity
+            if (notionalValue > 0) {
+              trade.returnPercent = (netPnL / notionalValue) * 100
+            }
+          }
         }
+        
+        // Set trade status and data source
+        trade.status = 'CLOSED' // Tradovate exports are completed trades
+        trade.dataSource = 'csv'
+        
       } else {
         // Generic auto-detection
         trade.symbol = findColumnValue(row, headers, ['symbol', 'ticker', 'instrument'])
@@ -267,22 +314,61 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         trade.quantity = Math.abs(parseFloat(findColumnValue(row, headers, ['quantity', 'qty', 'shares', 'size'])))
       }
 
-      // Validation
-      if (!trade.symbol) trade.errors.push('Missing symbol')
-      if (!trade.entryDate) trade.errors.push('Missing entry date')
-      if (!trade.entryPrice || trade.entryPrice <= 0) trade.errors.push('Invalid entry price')
-      if (!trade.quantity || trade.quantity <= 0) trade.errors.push('Invalid quantity')
+      // Enhanced validation with better error messages
+      if (!trade.symbol) {
+        trade.errors.push('Missing symbol')
+      } else if (!/^[A-Z]{2,6}[A-Z0-9]{0,2}$/i.test(trade.symbol)) {
+        // Basic futures symbol validation
+        console.warn(`Unusual symbol format: ${trade.symbol}`)
+      }
+      
+      if (!trade.entryDate) {
+        trade.errors.push('Missing entry date')
+      } else if (new Date(trade.entryDate).getTime() > Date.now()) {
+        trade.errors.push('Entry date is in the future')
+      }
+      
+      if (!trade.entryPrice || trade.entryPrice <= 0) {
+        trade.errors.push('Invalid entry price')
+      } else if (trade.entryPrice > 1000000) {
+        trade.errors.push('Entry price seems unreasonably high')
+      }
+      
+      if (!trade.quantity || trade.quantity <= 0) {
+        trade.errors.push('Invalid quantity')
+      } else if (trade.quantity > 10000) {
+        trade.errors.push('Quantity seems unreasonably high')
+      }
       
       // For Tradovate, we expect both entry and exit data since these are completed round-trip trades
       if (template === 'tradovate' || isTradovateFormat) {
-        if (!trade.exitDate) trade.errors.push('Missing exit date')
-        if (!trade.exitPrice || trade.exitPrice <= 0) trade.errors.push('Invalid exit price')
+        if (!trade.exitDate) {
+          trade.errors.push('Missing exit date')
+        } else if (new Date(trade.exitDate) <= new Date(trade.entryDate)) {
+          trade.errors.push('Exit date must be after entry date')
+        }
+        
+        if (!trade.exitPrice || trade.exitPrice <= 0) {
+          trade.errors.push('Invalid exit price')
+        }
+        
+        // Validate P&L consistency
+        if (trade.netPnL !== undefined && trade.entryPrice > 0 && trade.exitPrice > 0) {
+          const calculatedPnL = trade.side === 'LONG' 
+            ? (trade.exitPrice - trade.entryPrice) * trade.quantity
+            : (trade.entryPrice - trade.exitPrice) * trade.quantity
+          
+          const pnlDifference = Math.abs(calculatedPnL - trade.netPnL)
+          if (pnlDifference > Math.abs(trade.netPnL) * 0.1) { // 10% tolerance for fees
+            console.warn(`P&L mismatch for ${trade.symbol}: calculated=${calculatedPnL}, actual=${trade.netPnL}`)
+          }
+        }
       }
 
       trade.isValid = trade.errors.length === 0
 
       return trade
-    }).filter(trade => trade.symbol) // Filter out empty rows
+    }).filter(trade => trade.symbol && trade.symbol.trim() !== '') // Filter out empty rows
   }
 
   const findColumnValue = (row: any[], headers: string[], possibleNames: string[]): string => {
@@ -308,17 +394,61 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
 
   // Helper function to parse P&L values like "$19.00" or "$(5.00)"
   const parsePnL = (pnlString: string): number => {
-    if (!pnlString) return 0
+    if (!pnlString || pnlString.trim() === '') return 0
     
-    // Remove dollar sign and handle parentheses for negative values
-    let cleanValue = pnlString.replace(/\$/g, '')
-    
-    if (cleanValue.includes('(') && cleanValue.includes(')')) {
-      // Negative value in parentheses: $(5.00) -> -5.00
-      cleanValue = '-' + cleanValue.replace(/[()]/g, '')
+    try {
+      // Handle various P&L formats from different brokers
+      let cleanValue = pnlString.toString().trim()
+      
+      // Remove common currency symbols and spaces
+      cleanValue = cleanValue.replace(/[\$£€¥₹₽]/g, '')
+      cleanValue = cleanValue.replace(/\s+/g, '')
+      
+      // Handle percentage values (convert to decimal if needed)
+      if (cleanValue.includes('%')) {
+        cleanValue = cleanValue.replace(/%/g, '')
+        const percentValue = parseFloat(cleanValue) || 0
+        return percentValue // Return as percentage, not decimal
+      }
+      
+      // Handle parentheses for negative values: $(5.00) or (5.00) -> -5.00
+      if (cleanValue.includes('(') && cleanValue.includes(')')) {
+        cleanValue = '-' + cleanValue.replace(/[()]/g, '')
+      }
+      
+      // Handle explicit negative signs
+      if (cleanValue.startsWith('-')) {
+        cleanValue = cleanValue.substring(1)
+        const value = parseFloat(cleanValue) || 0
+        return -Math.abs(value)
+      }
+      
+      // Handle explicit positive signs
+      if (cleanValue.startsWith('+')) {
+        cleanValue = cleanValue.substring(1)
+      }
+      
+      // Handle comma separators in large numbers: 1,234.56 -> 1234.56
+      cleanValue = cleanValue.replace(/,/g, '')
+      
+      // Final parsing
+      const result = parseFloat(cleanValue)
+      
+      if (isNaN(result)) {
+        console.warn(`Could not parse P&L value: "${pnlString}"`)
+        return 0
+      }
+      
+      // Sanity check for unreasonable values
+      if (Math.abs(result) > 1000000) {
+        console.warn(`P&L value seems unreasonably large: ${result} from "${pnlString}"`)
+      }
+      
+      return result
+    } catch (error) {
+      console.error('Error parsing P&L:', error, 'Input:', pnlString)
+      return 0
     }
-    
-    return parseFloat(cleanValue) || 0
   }
 
   const mapTradovateSide = (value: string): 'LONG' | 'SHORT' => {
@@ -395,7 +525,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
       for (let i = 0; i < validTrades.length; i++) {
         const trade = validTrades[i]
         
-        // Convert to API format
+        // Convert to API format with enhanced round-trip support
         const tradeData = {
           userId: session?.user?.id || '',
           symbol: trade.symbol,
@@ -403,15 +533,30 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           entryDate: new Date(trade.entryDate).toISOString(),
           entryPrice: trade.entryPrice,
           quantity: trade.quantity,
-          market: trade.market,
-          notes: trade.notes || '',
-          dataSource: 'csv',
-          // Include exit data if available
-          ...(trade.exitDate && { exitDate: new Date(trade.exitDate).toISOString() }),
+          market: trade.market || 'FUTURES',
+          notes: trade.notes || `Imported from CSV - ${trade.symbol} ${trade.side}`,
+          dataSource: trade.dataSource || 'csv',
+          
+          // Round-trip trade data (for completed trades like Tradovate)
+          ...(trade.exitDate && { 
+            exitDate: new Date(trade.exitDate).toISOString(),
+            status: 'CLOSED' // Mark as closed if we have exit data
+          }),
           ...(trade.exitPrice && { exitPrice: trade.exitPrice }),
-          // Include P&L data if available
+          
+          // Enhanced P&L and performance data
           ...(trade.netPnL !== undefined && { netPnL: trade.netPnL }),
-          ...(trade.grossPnL !== undefined && { grossPnL: trade.grossPnL })
+          ...(trade.grossPnL !== undefined && { grossPnL: trade.grossPnL }),
+          ...(trade.returnPercent !== undefined && { returnPercent: trade.returnPercent }),
+          
+          // Set trade status based on available data
+          status: trade.status || (trade.exitDate ? 'CLOSED' : 'OPEN'),
+          
+          // Additional fields for better tracking
+          entryFees: 0, // Default for CSV imports
+          exitFees: 0,  // Default for CSV imports
+          commission: 0, // P&L from Tradovate is already net
+          swap: 0
         }
 
         console.log(`Importing trade ${i + 1}:`, tradeData)
@@ -424,8 +569,19 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
 
         if (!response.ok) {
           const errorText = await response.text()
-          console.error(`Failed to import trade ${i + 1}:`, errorText)
-          throw new Error(`Failed to import trade ${i + 1}: ${errorText}`)
+          console.error(`Failed to import trade ${i + 1} (${trade.symbol}):`, errorText)
+          
+          // Try to parse error response for better user feedback
+          let errorMessage = `Failed to import ${trade.symbol}`
+          try {
+            const errorData = JSON.parse(errorText)
+            errorMessage = errorData.error || errorData.message || errorMessage
+          } catch {
+            // Use raw text if not JSON
+            errorMessage = errorText.substring(0, 100) || errorMessage
+          }
+          
+          throw new Error(`Trade ${i + 1} (${trade.symbol}): ${errorMessage}`)
         }
         
         const result = await response.json()
@@ -441,7 +597,12 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
       handleClose()
     } catch (error) {
       console.error('Import error:', error)
-      alert('Error importing trades. Please try again.')
+      
+      // Show detailed error message to user
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      const detailedMessage = `Import failed: ${errorMessage}\n\nPlease check your data and try again. If the problem persists, verify that:\n- All required fields are present\n- Dates are valid\n- Prices are positive numbers\n- No duplicate trades exist`
+      
+      alert(detailedMessage)
       setStep('preview')
     }
   }
@@ -702,7 +863,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                   </div>
                 </div>
 
-                {/* Preview Table */}
+                {/* Enhanced Preview Table for Round-Trip Trades */}
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
                   <div className="overflow-x-auto max-h-96">
                     <table className="w-full">
@@ -711,38 +872,119 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                           <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Status</th>
                           <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Symbol</th>
                           <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Side</th>
-                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Date</th>
-                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Price</th>
-                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Quantity</th>
-                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Errors</th>
+                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Entry</th>
+                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Exit</th>
+                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Qty</th>
+                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>P&L</th>
+                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Duration</th>
+                          <th className={`text-left py-3 px-4 ${themeClasses.textSecondary} font-medium`}>Issues</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {parsedTrades.map((trade, index) => (
-                          <tr key={index} className={`border-b ${trade.isValid ? '' : 'bg-red-50'}`}>
-                            <td className="py-3 px-4">
-                              {trade.isValid ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <AlertCircle className="w-4 h-4 text-red-500" />
-                              )}
-                            </td>
-                            <td className={`py-3 px-4 ${themeClasses.text}`}>{trade.symbol}</td>
-                            <td className={`py-3 px-4 ${themeClasses.text}`}>
-                              <span className={`px-2 py-1 rounded text-xs ${
-                                trade.side === 'LONG' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {trade.side}
-                              </span>
-                            </td>
-                            <td className={`py-3 px-4 ${themeClasses.text}`}>{trade.entryDate}</td>
-                            <td className={`py-3 px-4 ${themeClasses.text}`}>${trade.entryPrice}</td>
-                            <td className={`py-3 px-4 ${themeClasses.text}`}>{trade.quantity}</td>
-                            <td className={`py-3 px-4 text-sm text-red-600`}>
-                              {trade.errors.join(', ')}
-                            </td>
-                          </tr>
-                        ))}
+                        {parsedTrades.map((trade, index) => {
+                          // Calculate trade duration if both dates available
+                          const getDuration = () => {
+                            if (!trade.entryDate || !trade.exitDate) return '-'
+                            try {
+                              const entryTime = new Date(trade.entryDate).getTime()
+                              const exitTime = new Date(trade.exitDate).getTime()
+                              const diffMs = Math.abs(exitTime - entryTime)
+                              
+                              const hours = Math.floor(diffMs / (1000 * 60 * 60))
+                              const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+                              
+                              if (hours > 0) return `${hours}h ${minutes}m`
+                              if (minutes > 0) return `${minutes}m`
+                              return '<1m'
+                            } catch {
+                              return '-'
+                            }
+                          }
+                          
+                          const formatDate = (dateStr: string) => {
+                            if (!dateStr) return '-'
+                            try {
+                              const date = new Date(dateStr)
+                              return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            } catch {
+                              return dateStr.substring(0, 16)
+                            }
+                          }
+                          
+                          return (
+                            <tr key={index} className={`border-b ${trade.isValid ? '' : 'bg-red-50'}`}>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center space-x-2">
+                                  {trade.isValid ? (
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                  ) : (
+                                    <AlertCircle className="w-4 h-4 text-red-500" />
+                                  )}
+                                  {trade.exitDate && (
+                                    <span className="px-1 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
+                                      CLOSED
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className={`py-3 px-4 ${themeClasses.text} font-medium`}>{trade.symbol}</td>
+                              <td className={`py-3 px-4 ${themeClasses.text}`}>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  trade.side === 'LONG' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {trade.side}
+                                </span>
+                              </td>
+                              <td className={`py-3 px-4 ${themeClasses.text} text-sm`}>
+                                <div className="space-y-1">
+                                  <div className="font-medium">${trade.entryPrice?.toFixed(2) || '0.00'}</div>
+                                  <div className={`text-xs ${themeClasses.textSecondary}`}>
+                                    {formatDate(trade.entryDate)}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className={`py-3 px-4 ${themeClasses.text} text-sm`}>
+                                {trade.exitPrice ? (
+                                  <div className="space-y-1">
+                                    <div className="font-medium">${trade.exitPrice.toFixed(2)}</div>
+                                    <div className={`text-xs ${themeClasses.textSecondary}`}>
+                                      {formatDate(trade.exitDate || '')}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className={`text-xs ${themeClasses.textSecondary}`}>Open</span>
+                                )}
+                              </td>
+                              <td className={`py-3 px-4 ${themeClasses.text} font-medium`}>{trade.quantity}</td>
+                              <td className={`py-3 px-4 text-sm`}>
+                                {trade.netPnL !== undefined ? (
+                                  <div className="space-y-1">
+                                    <div className={`font-medium ${
+                                      trade.netPnL >= 0 ? 'text-green-600' : 'text-red-600'
+                                    }`}>
+                                      {trade.netPnL >= 0 ? '+' : ''}${trade.netPnL.toFixed(2)}
+                                    </div>
+                                    {trade.returnPercent !== undefined && (
+                                      <div className={`text-xs ${
+                                        trade.returnPercent >= 0 ? 'text-green-600' : 'text-red-600'
+                                      }`}>
+                                        {trade.returnPercent >= 0 ? '+' : ''}{trade.returnPercent.toFixed(1)}%
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className={`text-xs ${themeClasses.textSecondary}`}>-</span>
+                                )}
+                              </td>
+                              <td className={`py-3 px-4 ${themeClasses.text} text-sm`}>
+                                {getDuration()}
+                              </td>
+                              <td className={`py-3 px-4 text-sm text-red-600`}>
+                                {trade.errors.length > 0 ? trade.errors.join(', ') : '-'}
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
