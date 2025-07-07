@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
 
     // Calculate basic statistics
     const totalTrades = trades.length
-    const openTrades = trades.filter(trade => trade.status === 'OPEN').length
-    const closedTrades = trades.filter(trade => trade.status === 'CLOSED')
+    const openTrades = trades.filter((trade: any) => trade.status === 'OPEN').length
+    const closedTrades = trades.filter((trade: any) => trade.status === 'CLOSED')
     
-    const totalPnL = closedTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
-    const winningTrades = closedTrades.filter(trade => (trade.netPnL || 0) > 0)
-    const losingTrades = closedTrades.filter(trade => (trade.netPnL || 0) < 0)
+    const totalPnL = closedTrades.reduce((sum: number, trade: any) => sum + (trade.netPnL || 0), 0)
+    const winningTrades = closedTrades.filter((trade: any) => (trade.netPnL || 0) > 0)
+    const losingTrades = closedTrades.filter((trade: any) => (trade.netPnL || 0) < 0)
     
     const winRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0
     
