@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { PlusIcon, BookOpenIcon, SearchIcon, FilterIcon, HeartIcon, TrendingUpIcon, LinkIcon, FileSpreadsheetIcon, AlertTriangleIcon, ZapIcon } from "lucide-react"
+import { PlusIcon, BookOpenIcon, SearchIcon, FilterIcon, HeartIcon, TrendingUpIcon, LinkIcon, FileSpreadsheetIcon, AlertTriangleIcon, ZapIcon, EditIcon, TrashIcon } from "lucide-react"
 import Header from "@/components/Header"
 import NewEntryModal from "@/components/NewEntryModal"
 import ExportButton from "@/components/ExportButton"
@@ -14,7 +14,7 @@ import { exportJournalToCSV } from "@/lib/exports"
 export default function Journal() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  const { entries, loading, error, createEntry, fetchEntries } = useJournal()
+  const { entries, loading, error, createEntry, fetchEntries, deleteEntry } = useJournal()
   
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
@@ -33,6 +33,17 @@ export default function Journal() {
     const result = await createEntry(newEntry)
     if (result) {
       setIsModalOpen(false)
+    }
+  }
+
+  const handleDeleteEntry = async (entryId: string) => {
+    if (window.confirm('Are you sure you want to delete this journal entry? This action cannot be undone.')) {
+      try {
+        await deleteEntry(entryId)
+      } catch (error) {
+        console.error('Failed to delete journal entry:', error)
+        alert('Failed to delete journal entry. Please try again.')
+      }
     }
   }
 
@@ -187,13 +198,38 @@ export default function Journal() {
                       {getEntryTypeLabel(entry.entryType)}
                     </span>
                   </div>
-                  <div className="text-right">
-                    <span className={`text-sm ${themeClasses.textSecondary} block`}>
-                      {new Date(entry.createdAt).toLocaleDateString()}
-                    </span>
-                    <span className={`text-xs ${themeClasses.textSecondary}`}>
-                      {new Date(entry.createdAt).toLocaleTimeString()}
-                    </span>
+                  <div className="flex items-center space-x-3">
+                    <div className="text-right">
+                      <span className={`text-sm ${themeClasses.textSecondary} block`}>
+                        {new Date(entry.createdAt).toLocaleDateString()}
+                      </span>
+                      <span className={`text-xs ${themeClasses.textSecondary}`}>
+                        {new Date(entry.createdAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          // Future: implement edit functionality
+                        }}
+                        className={`p-1 ${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors opacity-50`}
+                        title="Edit entry (coming soon)"
+                        disabled
+                      >
+                        <EditIcon className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteEntry(entry.id)
+                        }}
+                        className={`p-1 ${themeClasses.textSecondary} hover:text-red-400 transition-colors`}
+                        title="Delete entry"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 

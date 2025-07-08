@@ -8,6 +8,8 @@ export function getThemeClasses(theme: "dark" | "light") {
       textSecondary: "text-gray-600", 
       textMuted: "text-gray-500",
       accent: "text-blue-600",
+      border: "border-gray-200/50",
+      button: "bg-gray-100 hover:bg-gray-200 text-gray-900",
       select: "[&>option]:bg-white [&>option]:text-gray-900",
       input: "bg-white/70 border border-gray-200/60 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-400",
     }
@@ -21,6 +23,8 @@ export function getThemeClasses(theme: "dark" | "light") {
     textSecondary: "text-gray-300",
     textMuted: "text-gray-400",
     accent: "text-blue-400",
+    border: "border-white/20",
+    button: "bg-white/10 hover:bg-white/20 text-white",
     select: "[&>option]:bg-slate-800 [&>option]:text-white",
     input: "bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:ring-blue-500",
   }

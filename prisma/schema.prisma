@@ -66,6 +66,7 @@ model User {
   importJobs       ImportJob[]
   brokerConnections BrokerConnection[]
   syncLogs         SyncLog[]
+  calendarEntries  CalendarEntry[]
 
   @@map("users")
 }
@@ -284,4 +285,31 @@ enum SyncStatus {
   SUCCESS
   ERROR
   PARTIAL
+}
+
+model CalendarEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime // The calendar date (YYYY-MM-DD)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Diary and notes
+  notes       String?  // Rich text diary content
+  mood        Int?     // 1-5 scale mood for the day
+  images      String?  // JSON array of image URLs/paths
+  
+  // Daily trading summary (calculated fields)
+  dailyPnL    Float?   // Total P&L for the day
+  tradesCount Int      @default(0)
+  winningTrades Int    @default(0)
+  losingTrades  Int    @default(0)
+  winRate     Float?   // Win rate for the day
+  
+  // Relationships
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, date]) // One entry per user per day
+  @@index([userId, date])
+  @@index([date]) // For efficient date range queries
 }

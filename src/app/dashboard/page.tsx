@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { motion } from "framer-motion"
 import { 
@@ -16,18 +16,47 @@ import {
 import MetricCard from "@/components/Dashboard/MetricCard"
 import PerformanceChart from "@/components/Dashboard/PerformanceChart"
 import RecentTrades from "@/components/Dashboard/RecentTrades"
+import TradingCalendar from "@/components/TradingCalendar"
+import CalendarDayModal from "@/components/CalendarDayModal"
 import Header from "@/components/Header"
 import { formatCurrency } from "@/lib/utils"
 import { useStats } from "@/hooks/useStats"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 
+interface CalendarDayData {
+  date: string
+  pnl: number
+  tradesCount: number
+  winRate: number
+  hasNotes: boolean
+  hasImages: boolean
+  mood?: number
+}
+
 function DashboardContent() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const { isAuthenticated, user, isLoading } = useAuth()
   const router = useRouter()
-  const { stats, loading, error: statsError } = useStats(user?.id || '')
+  const { stats, loading, error: statsError } = useStats(user?.id || 'demo-user')
+  
+  // Calendar modal state
+  const [selectedDate, setSelectedDate] = useState<string>('')
+  const [selectedDayData, setSelectedDayData] = useState<CalendarDayData | undefined>()
+  const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false)
+
+  const handleDayClick = (date: string, dayData?: CalendarDayData) => {
+    setSelectedDate(date)
+    setSelectedDayData(dayData)
+    setIsCalendarModalOpen(true)
+  }
+
+  const closeCalendarModal = () => {
+    setIsCalendarModalOpen(false)
+    setSelectedDate('')
+    setSelectedDayData(undefined)
+  }
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -139,6 +168,16 @@ function DashboardContent() {
           </div>
         </div>
 
+        {/* Trading Calendar */}
+        <div className="px-6 mb-8">
+          <div className="max-w-7xl mx-auto">
+            <TradingCalendar 
+              onDayClick={handleDayClick}
+              userId={user?.id || 'demo-user'}
+            />
+          </div>
+        </div>
+
         {/* Charts and Recent Trades */}
         <div className="px-6 mb-8">
           <div className="max-w-7xl mx-auto">
@@ -154,7 +193,7 @@ function DashboardContent() {
         </div>
 
         {/* Additional Metrics */}
-        <div className="px-6 pb-8">
+        <div className="px-6 mb-8">
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <MetricCard
@@ -180,6 +219,15 @@ function DashboardContent() {
         </div>
         </div>
       </div>
+
+      {/* Calendar Day Modal */}
+      <CalendarDayModal
+        isOpen={isCalendarModalOpen}
+        onClose={closeCalendarModal}
+        date={selectedDate}
+        userId={user?.id || 'demo-user'}
+        initialData={selectedDayData}
+      />
     </>
   )
 }

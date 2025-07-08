@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
+    // Fetch trades from database
     const trades = await prisma.trade.findMany({
       where: { userId },
       include: {

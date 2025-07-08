@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 
 interface Stats {
   totalPnL: number
@@ -34,39 +34,42 @@ export function useStats(userId: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchStats = useCallback(async () => {
     if (!userId) return
 
-    const fetchStats = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        const response = await fetch(`/api/stats?userId=${userId}`)
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch stats')
-        }
-
-        const data = await response.json()
-        
-        // Convert date strings back to Date objects for recentTrades
-        data.recentTrades = data.recentTrades.map((trade: any) => ({
-          ...trade,
-          entryDate: new Date(trade.entryDate),
-          exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
-        }))
-        
-        setStats(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setLoading(false)
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await fetch(`/api/stats?userId=${userId}`, {
+        cache: 'force-cache',
+        next: { revalidate: 60 }
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch stats')
       }
-    }
 
-    fetchStats()
+      const data = await response.json()
+      
+      // Convert date strings back to Date objects for recentTrades
+      data.recentTrades = data.recentTrades.map((trade: any) => ({
+        ...trade,
+        entryDate: new Date(trade.entryDate),
+        exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
+      }))
+      
+      setStats(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
   }, [userId])
+
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
 
   const refetchStats = async () => {
     if (!userId) return

@@ -1,0 +1,494 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useDropzone } from "react-dropzone"
+import { 
+  X, 
+  Calendar,
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Trophy,
+  Upload,
+  Image as ImageIcon,
+  Heart,
+  Star,
+  Save,
+  Loader2,
+  BarChart3,
+  DollarSign
+} from "lucide-react"
+import { useTheme } from "@/components/ThemeProvider"
+import { getThemeClasses } from "@/lib/theme"
+import { formatCurrency, formatDate } from "@/lib/utils"
+
+interface Trade {
+  id: string
+  symbol: string
+  side: 'LONG' | 'SHORT'
+  entryPrice: number
+  exitPrice?: number
+  quantity: number
+  netPnL?: number
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  entryDate: Date
+  exitDate?: Date
+}
+
+interface CalendarDayData {
+  date: string
+  pnl: number
+  tradesCount: number
+  winRate: number
+  hasNotes: boolean
+  hasImages: boolean
+  mood?: number
+  notes?: string
+  images?: string[]
+  trades?: Trade[]
+}
+
+interface CalendarDayModalProps {
+  isOpen: boolean
+  onClose: () => void
+  date: string
+  userId: string
+  initialData?: CalendarDayData
+}
+
+export default function CalendarDayModal({ isOpen, onClose, date, userId, initialData }: CalendarDayModalProps) {
+  const { theme } = useTheme()
+  const themeClasses = getThemeClasses(theme)
+  
+  const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'diary' | 'images'>('overview')
+  const [dayData, setDayData] = useState<CalendarDayData | null>(initialData || null)
+  const [notes, setNotes] = useState('')
+  const [mood, setMood] = useState<number | undefined>(undefined)
+  const [images, setImages] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  
+  const dateObj = new Date(date)
+  const isToday = date === new Date().toISOString().split('T')[0]
+  
+  // Load day data when modal opens
+  useEffect(() => {
+    if (isOpen && !initialData) {
+      loadDayData()
+    } else if (initialData) {
+      setNotes(initialData.notes || '')
+      setMood(initialData.mood)
+      setImages(initialData.images || [])
+    }
+  }, [isOpen, date, initialData])
+  
+  const loadDayData = async () => {
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/calendar/${date}?userId=${userId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setDayData(data)
+        setNotes(data.notes || '')
+        setMood(data.mood)
+        setImages(data.images || [])
+      }
+    } catch (error) {
+      console.error('Failed to load day data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  const saveDayData = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/calendar/${date}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          notes: notes.trim() || undefined,
+          mood,
+          images: images.length > 0 ? images : undefined
+        })
+      })
+      
+      if (response.ok) {
+        const updatedData = await response.json()
+        setDayData(updatedData)
+      }
+    } catch (error) {
+      console.error('Failed to save day data:', error)
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  // Image upload handler
+  const onDrop = (acceptedFiles: File[]) => {
+    // For now, we'll simulate image upload
+    // In a real implementation, you'd upload to a server or cloud storage
+    acceptedFiles.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        setImages(prev => [...prev, reader.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+  
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.webp']
+    },
+    maxFiles: 5
+  })
+  
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index))
+  }
+  
+  const renderStars = (rating: number | undefined, onChange?: (rating: number) => void) => {
+    return (
+      <div className="flex space-x-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            onClick={() => onChange && onChange(star)}
+            className={`transition-colors ${onChange ? 'cursor-pointer' : 'cursor-default'}`}
+            disabled={!onChange}
+          >
+            <Star
+              className={`w-5 h-5 ${
+                rating && star <= rating 
+                  ? 'text-yellow-400 fill-current' 
+                  : 'text-gray-300'
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+    )
+  }
+  
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: BarChart3 },
+    { id: 'trades', label: 'Trades', icon: DollarSign },
+    { id: 'diary', label: 'Diary', icon: Heart },
+    { id: 'images', label: 'Images', icon: ImageIcon },
+  ]
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+          />
+          
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            className={`relative w-full max-w-4xl max-h-[90vh] ${themeClasses.surface} rounded-xl shadow-2xl border ${themeClasses.border} overflow-hidden`}
+          >
+            {/* Header */}
+            <div className={`${themeClasses.background} px-6 py-4 border-b ${themeClasses.border}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Calendar className={`w-6 h-6 ${themeClasses.accent}`} />
+                  <div>
+                    <h2 className={`text-xl font-bold ${themeClasses.text}`}>
+                      {formatDate(dateObj)}
+                      {isToday && <span className="ml-2 text-sm text-blue-500">(Today)</span>}
+                    </h2>
+                    {dayData && (
+                      <div className="flex items-center space-x-4 mt-1">
+                        <span className={`text-sm ${dayData.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(dayData.pnl)} P&L
+                        </span>
+                        <span className={`text-sm ${themeClasses.textSecondary}`}>
+                          {dayData.tradesCount} trades
+                        </span>
+                        {dayData.winRate !== undefined && (
+                          <span className={`text-sm ${themeClasses.textSecondary}`}>
+                            {dayData.winRate.toFixed(1)}% win rate
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={saveDayData}
+                    disabled={saving}
+                    className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors"
+                  >
+                    {saving ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    <span>Save</span>
+                  </button>
+                  
+                  <button
+                    onClick={onClose}
+                    className={`p-2 rounded-lg ${themeClasses.button} transition-colors`}
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Tabs */}
+              <div className="flex space-x-1 mt-4">
+                {tabs.map(tab => {
+                  const Icon = tab.icon
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        activeTab === tab.id
+                          ? 'bg-blue-600 text-white'
+                          : `${themeClasses.button} ${themeClasses.text}`
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{tab.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+              {loading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className={`w-8 h-8 animate-spin ${themeClasses.accent}`} />
+                </div>
+              ) : (
+                <>
+                  {/* Overview Tab */}
+                  {activeTab === 'overview' && (
+                    <div className="space-y-6">
+                      {dayData ? (
+                        <>
+                          {/* Performance Summary */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className={`p-4 ${themeClasses.surface} rounded-lg border ${themeClasses.border}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className={`text-sm ${themeClasses.textSecondary}`}>P&L</div>
+                                  <div className={`text-xl font-bold ${dayData.pnl >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatCurrency(dayData.pnl)}
+                                  </div>
+                                </div>
+                                {dayData.pnl >= 0 ? (
+                                  <TrendingUp className="w-8 h-8 text-green-500" />
+                                ) : (
+                                  <TrendingDown className="w-8 h-8 text-red-500" />
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className={`p-4 ${themeClasses.surface} rounded-lg border ${themeClasses.border}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className={`text-sm ${themeClasses.textSecondary}`}>Trades</div>
+                                  <div className={`text-xl font-bold ${themeClasses.text}`}>
+                                    {dayData.tradesCount}
+                                  </div>
+                                </div>
+                                <Target className={`w-8 h-8 ${themeClasses.accent}`} />
+                              </div>
+                            </div>
+                            
+                            <div className={`p-4 ${themeClasses.surface} rounded-lg border ${themeClasses.border}`}>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className={`text-sm ${themeClasses.textSecondary}`}>Win Rate</div>
+                                  <div className={`text-xl font-bold ${themeClasses.text}`}>
+                                    {dayData.winRate.toFixed(1)}%
+                                  </div>
+                                </div>
+                                <Trophy className={`w-8 h-8 ${dayData.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`} />
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Mood Tracking */}
+                          <div className={`p-4 ${themeClasses.surface} rounded-lg border ${themeClasses.border}`}>
+                            <h3 className={`text-lg font-medium ${themeClasses.text} mb-3`}>Daily Mood</h3>
+                            <div className="flex items-center space-x-4">
+                              {renderStars(mood, setMood)}
+                              <span className={`text-sm ${themeClasses.textSecondary}`}>
+                                {mood ? `${mood}/5` : 'Not set'}
+                              </span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Calendar className={`w-12 h-12 mx-auto mb-4 ${themeClasses.textSecondary}`} />
+                          <h3 className={`text-lg font-medium ${themeClasses.text} mb-2`}>No trading data</h3>
+                          <p className={`${themeClasses.textSecondary}`}>
+                            No trades found for this date. Add some diary notes or images to track your trading journey.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Trades Tab */}
+                  {activeTab === 'trades' && (
+                    <div className="space-y-4">
+                      {dayData?.trades && dayData.trades.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className={`border-b ${themeClasses.border}`}>
+                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Symbol</th>
+                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Side</th>
+                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Entry</th>
+                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Exit</th>
+                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>P&L</th>
+                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {dayData.trades.map((trade) => (
+                                <tr key={trade.id} className={`border-b ${themeClasses.border}`}>
+                                  <td className={`py-2 font-medium ${themeClasses.text}`}>{trade.symbol}</td>
+                                  <td className="py-2">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      trade.side === 'LONG' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}>
+                                      {trade.side}
+                                    </span>
+                                  </td>
+                                  <td className={`py-2 ${themeClasses.text}`}>${trade.entryPrice}</td>
+                                  <td className={`py-2 ${themeClasses.text}`}>
+                                    {trade.exitPrice ? `$${trade.exitPrice}` : '-'}
+                                  </td>
+                                  <td className={`py-2 ${trade.netPnL && trade.netPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {trade.netPnL ? formatCurrency(trade.netPnL) : '-'}
+                                  </td>
+                                  <td className="py-2">
+                                    <span className={`px-2 py-1 rounded text-xs ${
+                                      trade.status === 'CLOSED' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                                    }`}>
+                                      {trade.status}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <BarChart3 className={`w-12 h-12 mx-auto mb-4 ${themeClasses.textSecondary}`} />
+                          <h3 className={`text-lg font-medium ${themeClasses.text} mb-2`}>No trades</h3>
+                          <p className={`${themeClasses.textSecondary}`}>No trades found for this date.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Diary Tab */}
+                  {activeTab === 'diary' && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>
+                          Trading Notes & Reflections
+                        </label>
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          rows={8}
+                          className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${themeClasses.input}`}
+                          placeholder="Record your thoughts, observations, lessons learned, market analysis, or any insights from today's trading..."
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>
+                          Mood Rating
+                        </label>
+                        <div className="flex items-center space-x-4">
+                          {renderStars(mood, setMood)}
+                          <span className={`text-sm ${themeClasses.textSecondary}`}>
+                            {mood ? `${mood}/5` : 'Rate your trading mood today'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Images Tab */}
+                  {activeTab === 'images' && (
+                    <div className="space-y-4">
+                      {/* Upload Area */}
+                      <div
+                        {...getRootProps()}
+                        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                          isDragActive 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : `border-gray-300 ${themeClasses.surface}`
+                        }`}
+                      >
+                        <input {...getInputProps()} />
+                        <Upload className={`w-12 h-12 mx-auto mb-4 ${themeClasses.textSecondary}`} />
+                        <p className={`text-lg font-medium ${themeClasses.text} mb-2`}>
+                          {isDragActive ? 'Drop images here' : 'Upload trading screenshots'}
+                        </p>
+                        <p className={`text-sm ${themeClasses.textSecondary}`}>
+                          Drag & drop images or click to browse (JPG, PNG, GIF, WebP)
+                        </p>
+                      </div>
+                      
+                      {/* Image Gallery */}
+                      {images.length > 0 && (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          {images.map((image, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={image}
+                                alt={`Trading screenshot ${index + 1}`}
+                                className="w-full h-32 object-cover rounded-lg"
+                              />
+                              <button
+                                onClick={() => removeImage(index)}
+                                className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  )
+}

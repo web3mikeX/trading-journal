@@ -1,10 +1,8 @@
 import { NextAuthOptions } from "next-auth"
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -15,34 +13,35 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email) return null
         
-        // For demo purposes, create a simple auth
-        // In production, you would validate against a password hash
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        })
-
-        if (user) {
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
+        // Demo mode - accept any email and create user if not exists
+        const userId = `demo-${credentials.email.replace(/[^a-zA-Z0-9]/g, '-')}`
+        
+        try {
+          // Check if user exists, if not create it
+          const existingUser = await prisma.user.findUnique({
+            where: { id: userId }
+          })
+          
+          if (!existingUser) {
+            await prisma.user.create({
+              data: {
+                id: userId,
+                email: credentials.email,
+                name: credentials.email.split('@')[0],
+                image: null,
+              }
+            })
           }
+        } catch (error) {
+          console.error('Error creating demo user:', error)
+          // Continue anyway - the user might already exist
         }
-
-        // Create new user for demo
-        const newUser = await prisma.user.create({
-          data: {
-            email: credentials.email,
-            name: credentials.email.split('@')[0], // Use email prefix as name
-          }
-        })
-
+        
         return {
-          id: newUser.id,
-          email: newUser.email,
-          name: newUser.name,
-          image: newUser.image,
+          id: userId,
+          email: credentials.email,
+          name: credentials.email.split('@')[0],
+          image: null,
         }
       }
     })

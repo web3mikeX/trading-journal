@@ -20,7 +20,7 @@ interface NewEntryModalProps {
     fear?: number;
     excitement?: number;
     tradeId?: string;
-  }) => void
+  }) => Promise<any>
 }
 
 export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModalProps) {
@@ -37,10 +37,20 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
   const [fear, setFear] = useState<number | undefined>(undefined)
   const [excitement, setExcitement] = useState<number | undefined>(undefined)
   const [tradeId, setTradeId] = useState<string | undefined>(undefined)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const handleSave = () => {
-    if (title.trim() && content.trim()) {
-      onSave({ 
+  const handleSave = async () => {
+    if (!title.trim() || !content.trim()) {
+      setSubmitError('Title and content are required')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const result = await onSave({ 
         title: title.trim(), 
         content: content.trim(), 
         entryType,
@@ -50,8 +60,15 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
         excitement,
         tradeId
       })
-      resetForm()
-      onClose()
+      
+      if (result) {
+        resetForm()
+        onClose()
+      }
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Failed to save journal entry')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -64,6 +81,8 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
     setFear(undefined)
     setExcitement(undefined)
     setTradeId(undefined)
+    setIsSubmitting(false)
+    setSubmitError(null)
   }
 
   const handleClose = () => {
@@ -132,6 +151,12 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {submitError && (
+              <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                <p className="text-red-300 text-sm">{submitError}</p>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -221,11 +246,15 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
               </button>
               <button
                 onClick={handleSave}
-                disabled={!title.trim() || !content.trim()}
+                disabled={!title.trim() || !content.trim() || isSubmitting}
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
               >
-                <Save className="w-4 h-4" />
-                <span>Save Entry</span>
+                {isSubmitting ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>{isSubmitting ? 'Saving...' : 'Save Entry'}</span>
               </button>
             </div>
           </motion.div>

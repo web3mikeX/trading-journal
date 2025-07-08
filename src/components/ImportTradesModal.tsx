@@ -353,7 +353,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         }
         
         // Validate P&L consistency
-        if (trade.netPnL !== undefined && trade.entryPrice > 0 && trade.exitPrice > 0) {
+        if (trade.netPnL !== undefined && trade.entryPrice > 0 && trade.exitPrice && trade.exitPrice > 0) {
           const calculatedPnL = trade.side === 'LONG' 
             ? (trade.exitPrice - trade.entryPrice) * trade.quantity
             : (trade.entryPrice - trade.exitPrice) * trade.quantity
