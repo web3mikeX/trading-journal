@@ -135,15 +135,8 @@ function TradesContent() {
     <>
       <Header />
       <div className={`min-h-screen ${themeClasses.background}`}>
-        {/* Background Effects - only show in dark mode */}
-        {theme === 'dark' && (
-          <>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,219,226,0.4),rgba(255,255,255,0))]" />
-          </>
-        )}
       
-      <div className="relative z-10 px-6 py-8">
+      <div className="px-6 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <motion.div

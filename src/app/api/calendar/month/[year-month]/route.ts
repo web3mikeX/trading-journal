@@ -26,23 +26,6 @@ export async function GET(
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
-    // Return demo calendar data for now
-    console.log(`Returning demo calendar data for ${yearMonth}, userId: ${userId}`)
-    return NextResponse.json({
-      yearMonth,
-      monthlyPnL: 750.25,
-      calendarData: {
-        '2025-07-01': { date: '2025-07-01', pnl: 125.50, tradesCount: 2, winRate: 100, hasNotes: false, hasImages: false },
-        '2025-07-02': { date: '2025-07-02', pnl: -75.25, tradesCount: 1, winRate: 0, hasNotes: true, hasImages: false },
-        '2025-07-03': { date: '2025-07-03', pnl: 200.00, tradesCount: 3, winRate: 66.7, hasNotes: false, hasImages: true },
-        '2025-07-06': { date: '2025-07-06', pnl: 500.00, tradesCount: 2, winRate: 100, hasNotes: true, hasImages: true }
-      },
-      totalTrades: 8,
-      tradingDays: 4
-    })
-
-    /* TEMPORARILY DISABLED DATABASE QUERIES
-
     // Parse year-month format (YYYY-MM)
     const dateMatch = yearMonth.match(/^(\d{4})-(\d{2})$/)
     if (!dateMatch) {
@@ -176,10 +159,13 @@ export async function GET(
       totalTrades: trades.length,
       tradingDays: Object.keys(calendarData).length
     })
-    */
+
 
   } catch (error) {
-    console.error('Calendar month GET error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: errorMessage 
+    }, { status: 500 })
   }
 }

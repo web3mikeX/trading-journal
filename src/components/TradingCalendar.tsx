@@ -55,11 +55,11 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
   const today = new Date()
   const todayString = today.toISOString().split('T')[0]
   
-  // Get calendar data for the current month
+  // Load calendar data for the current month
   useEffect(() => {
     if (!userId) return
     
-    const fetchCalendarData = async () => {
+    const loadCalendarData = async () => {
       setLoading(true)
       try {
         const yearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
@@ -77,7 +77,7 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
       }
     }
     
-    fetchCalendarData()
+    loadCalendarData()
   }, [userId, currentMonth, currentYear])
   
   // Get days in month and start day
@@ -147,6 +147,22 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
     }
     return weeklyPnL
   }
+
+  // Calculate weekly trade count
+  const getWeeklyTradeCount = (weekStartIndex: number): number => {
+    let weeklyTradeCount = 0
+    for (let i = 0; i < 7; i++) {
+      const dayIndex = weekStartIndex + i
+      if (dayIndex < calendarDays.length) {
+        const day = calendarDays[dayIndex]
+        const dayData = calendarData[day.date]
+        if (dayData && day.isCurrentMonth) {
+          weeklyTradeCount += dayData.tradesCount || 0
+        }
+      }
+    }
+    return weeklyTradeCount
+  }
   
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
@@ -165,16 +181,16 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
   }
   
   const getPnLColor = (pnl: number) => {
-    if (pnl > 0) return 'text-green-600'
-    if (pnl < 0) return 'text-red-600'
+    if (pnl > 0) return theme === 'light' ? 'text-green-700' : 'text-green-400'
+    if (pnl < 0) return theme === 'light' ? 'text-red-700' : 'text-red-400'
     return themeClasses.textSecondary
   }
   
   const getDayBackgroundColor = (pnl: number, hasData: boolean) => {
     if (!hasData) return ''
-    if (pnl > 0) return 'bg-green-50 border-green-200'
-    if (pnl < 0) return 'bg-red-50 border-red-200'
-    return 'bg-gray-50 border-gray-200'
+    if (pnl > 0) return theme === 'light' ? 'bg-green-100 border-green-300' : 'bg-green-900/30 border-green-500'
+    if (pnl < 0) return theme === 'light' ? 'bg-red-100 border-red-300' : 'bg-red-900/30 border-red-500'
+    return theme === 'light' ? 'bg-gray-100 border-gray-300' : 'bg-gray-800 border-gray-600'
   }
 
   return (
@@ -244,7 +260,7 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
                   <span className="sm:hidden">{day.slice(0, 1)}</span>
                 </div>
               ))}
-              <div className={`hidden lg:block p-2 text-center text-sm font-medium ${themeClasses.textSecondary}`}>
+              <div className={`hidden lg:block p-2 text-center text-sm font-medium ${themeClasses.textSecondary} ml-3`}>
                 Week P&L
               </div>
             </div>
@@ -316,11 +332,17 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
                 })}
                 
                 {/* Weekly P&L */}
-                <div className={`hidden lg:flex items-center justify-center p-2 sm:p-3 min-h-16 sm:min-h-20 h-auto ${themeClasses.surface} border ${themeClasses.border} rounded-lg`}>
+                <div className={`hidden lg:flex items-center justify-center p-2 sm:p-3 min-h-16 sm:min-h-20 h-auto ${themeClasses.surface} border ${themeClasses.border} rounded-lg ml-6 border-l-4 border-l-blue-500`}>
                   <div className="text-center">
                     <div className={`text-xs ${themeClasses.textSecondary} mb-1`}>Week</div>
                     <div className={`text-sm font-bold ${getPnLColor(getWeeklyPnL(weekIndex * 7))}`}>
                       {formatCurrency(getWeeklyPnL(weekIndex * 7))}
+                    </div>
+                    <div className={`text-xs ${themeClasses.textSecondary} mt-1`}>
+                      {(() => {
+                        const tradeCount = getWeeklyTradeCount(weekIndex * 7)
+                        return tradeCount === 1 ? '1 trade' : `${tradeCount} trades`
+                      })()}
                     </div>
                   </div>
                 </div>

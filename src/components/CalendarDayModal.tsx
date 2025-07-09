@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
 import { useDropzone } from "react-dropzone"
 import { 
   X, 
@@ -55,9 +54,10 @@ interface CalendarDayModalProps {
   date: string
   userId: string
   initialData?: CalendarDayData
+  onSaveSuccess?: () => void
 }
 
-export default function CalendarDayModal({ isOpen, onClose, date, userId, initialData }: CalendarDayModalProps) {
+export default function CalendarDayModal({ isOpen, onClose, date, userId, initialData, onSaveSuccess }: CalendarDayModalProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   
@@ -68,18 +68,26 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   
   const dateObj = new Date(date)
   const isToday = date === new Date().toISOString().split('T')[0]
   
   // Load day data when modal opens
   useEffect(() => {
-    if (isOpen && !initialData) {
+    if (isOpen) {
+      if (initialData) {
+        // Set initial data immediately for quick display
+        setDayData(initialData)
+        setNotes(initialData.notes || '')
+        setMood(initialData.mood)
+        setImages(initialData.images || [])
+      }
+      // Always load full data from API to ensure we have complete information
       loadDayData()
-    } else if (initialData) {
-      setNotes(initialData.notes || '')
-      setMood(initialData.mood)
-      setImages(initialData.images || [])
     }
   }, [isOpen, date, initialData])
   
@@ -103,6 +111,9 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   
   const saveDayData = async () => {
     setSaving(true)
+    setSaveMessage(null)
+    setSaveError(null)
+    
     try {
       const response = await fetch(`/api/calendar/${date}`, {
         method: 'POST',
@@ -115,12 +126,28 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
         })
       })
       
-      if (response.ok) {
-        const updatedData = await response.json()
-        setDayData(updatedData)
+      if (!response.ok) {
+        throw new Error(`Save failed: ${response.status} ${response.statusText}`)
       }
+      
+      const updatedData = await response.json()
+      setDayData(updatedData)
+      setSaveMessage('Saved successfully!')
+      
+      // Call the parent callback to refresh calendar data
+      if (onSaveSuccess) {
+        onSaveSuccess()
+      }
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSaveMessage(null), 3000)
+      
     } catch (error) {
       console.error('Failed to save day data:', error)
+      setSaveError(error instanceof Error ? error.message : 'Failed to save day data')
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => setSaveError(null), 5000)
     } finally {
       setSaving(false)
     }
@@ -150,6 +177,30 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index))
   }
+  
+  const openImagePreview = (imageUrl: string) => {
+    setSelectedImage(imageUrl)
+    setIsImageModalOpen(true)
+  }
+  
+  const closeImagePreview = () => {
+    setSelectedImage(null)
+    setIsImageModalOpen(false)
+  }
+  
+  // Handle ESC key press to close image modal
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isImageModalOpen) {
+        closeImagePreview()
+      }
+    }
+    
+    if (isImageModalOpen) {
+      document.addEventListener('keydown', handleEscKey)
+      return () => document.removeEventListener('keydown', handleEscKey)
+    }
+  }, [isImageModalOpen])
   
   const renderStars = (rating: number | undefined, onChange?: (rating: number) => void) => {
     return (
@@ -182,25 +233,19 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   ]
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-          />
-          
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className={`relative w-full max-w-4xl max-h-[90vh] ${themeClasses.surface} rounded-xl shadow-2xl border ${themeClasses.border} overflow-hidden`}
-          >
+        <div key="calendar-day-modal" className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              onClick={onClose}
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            />
+            
+            {/* Modal */}
+            <div
+              className={`relative w-full max-w-4xl max-h-[90vh] ${themeClasses.surface} rounded-xl shadow-2xl border ${themeClasses.border} overflow-hidden`}
+            >
             {/* Header */}
             <div className={`${themeClasses.background} px-6 py-4 border-b ${themeClasses.border}`}>
               <div className="flex items-center justify-between">
@@ -252,6 +297,22 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                 </div>
               </div>
               
+              {/* Save Messages */}
+              {(saveMessage || saveError) && (
+                <div className="px-6 pb-4">
+                  {saveMessage && (
+                    <div className="flex items-center space-x-2 text-green-600 bg-green-50 dark:bg-green-900/20 dark:text-green-400 px-4 py-2 rounded-lg">
+                      <span className="text-sm font-medium">{saveMessage}</span>
+                    </div>
+                  )}
+                  {saveError && (
+                    <div className="flex items-center space-x-2 text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 px-4 py-2 rounded-lg">
+                      <span className="text-sm font-medium">{saveError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               {/* Tabs */}
               <div className="flex space-x-1 mt-4">
                 {tabs.map(tab => {
@@ -281,12 +342,12 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                   <Loader2 className={`w-8 h-8 animate-spin ${themeClasses.accent}`} />
                 </div>
               ) : (
-                <>
+                <div key="modal-content">
                   {/* Overview Tab */}
                   {activeTab === 'overview' && (
-                    <div className="space-y-6">
+                    <div key="overview-tab" className="space-y-6">
                       {dayData ? (
-                        <>
+                        <div key="overview-content">
                           {/* Performance Summary */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className={`p-4 ${themeClasses.surface} rounded-lg border ${themeClasses.border}`}>
@@ -340,7 +401,42 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                               </span>
                             </div>
                           </div>
-                        </>
+                          
+                          {/* Image Thumbnails */}
+                          {images.length > 0 && (
+                            <div className={`p-4 ${themeClasses.surface} rounded-lg border ${themeClasses.border}`}>
+                              <h3 className={`text-lg font-medium ${themeClasses.text} mb-3`}>
+                                Trading Screenshots ({images.length})
+                              </h3>
+                              <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                                {images.slice(0, 3).map((image, index) => (
+                                  <div
+                                    key={`overview-image-${index}`}
+                                    className="relative group cursor-pointer hover:scale-105 transition-transform"
+                                    onClick={() => openImagePreview(image)}
+                                  >
+                                    <img
+                                      src={image}
+                                      alt={`Trading screenshot ${index + 1}`}
+                                      className="w-full h-16 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
+                                    />
+                                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-opacity" />
+                                  </div>
+                                ))}
+                                {images.length > 3 && (
+                                  <div 
+                                    className={`h-16 ${themeClasses.surface} border-2 border-dashed ${themeClasses.border} rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors`}
+                                    onClick={() => setActiveTab('images')}
+                                  >
+                                    <span className={`text-sm ${themeClasses.textSecondary}`}>
+                                      +{images.length - 3} more
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <div className="text-center py-8">
                           <Calendar className={`w-12 h-12 mx-auto mb-4 ${themeClasses.textSecondary}`} />
@@ -355,7 +451,7 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                   
                   {/* Trades Tab */}
                   {activeTab === 'trades' && (
-                    <div className="space-y-4">
+                    <div key="trades-tab" className="space-y-4">
                       {dayData?.trades && dayData.trades.length > 0 ? (
                         <div className="overflow-x-auto">
                           <table className="w-full">
@@ -411,7 +507,7 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                   
                   {/* Diary Tab */}
                   {activeTab === 'diary' && (
-                    <div className="space-y-4">
+                    <div key="diary-tab" className="space-y-4">
                       <div>
                         <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>
                           Trading Notes & Reflections
@@ -441,7 +537,7 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                   
                   {/* Images Tab */}
                   {activeTab === 'images' && (
-                    <div className="space-y-4">
+                    <div key="images-tab" className="space-y-4">
                       {/* Upload Area */}
                       <div
                         {...getRootProps()}
@@ -465,7 +561,7 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                       {images.length > 0 && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                           {images.map((image, index) => (
-                            <div key={index} className="relative group">
+                            <div key={`gallery-image-${index}`} className="relative group">
                               <img
                                 src={image}
                                 alt={`Trading screenshot ${index + 1}`}
@@ -483,12 +579,44 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                       )}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
-    </AnimatePresence>
+      
+      {/* Image Preview Modal */}
+      {isImageModalOpen && selectedImage && (
+        <div key="image-preview-modal" className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div
+              onClick={closeImagePreview}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            
+            {/* Modal Content */}
+            <div
+              className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center"
+            >
+            {/* Close Button */}
+            <button
+              onClick={closeImagePreview}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/70 text-white rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            {/* Image */}
+            <img
+              src={selectedImage}
+              alt="Trading screenshot preview"
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            </div>
+          </div>
+        )}
+    </>
   )
 }

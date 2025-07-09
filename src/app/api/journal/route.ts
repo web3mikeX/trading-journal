@@ -76,8 +76,11 @@ export async function GET(request: NextRequest) {
       hasMore: totalCount > offset + limit
     })
   } catch (error) {
-    console.error('Error fetching journal entries:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Internal Server Error', 
+      details: errorMessage 
+    }, { status: 500 })
   }
 }
 
@@ -122,7 +125,10 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 })
     }
-    console.error('Error creating journal entry:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Internal Server Error', 
+      details: errorMessage 
+    }, { status: 500 })
   }
 }

@@ -62,14 +62,6 @@ export default function SignIn() {
       <div className="absolute top-6 right-6 z-50">
         <ThemeToggle variant="standalone" />
       </div>
-      {/* Background Effects - only show in dark mode */}
-      {theme === 'dark' && (
-        <>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,219,226,0.4),rgba(255,255,255,0))]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(255,119,198,0.3),rgba(255,255,255,0))]" />
-        </>
-      )}
       
       <motion.div
         initial={{ opacity: 0, y: 20 }}

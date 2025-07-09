@@ -1,31 +1,31 @@
 export function getThemeClasses(theme: "dark" | "light") {
   if (theme === "light") {
     return {
-      // Soft Corporate Light Mode - professional and easy on the eyes
-      background: "bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50",
-      surface: "bg-white/90 backdrop-blur-xl border border-gray-200/50 shadow-sm",
+      // Clean White Light Mode - minimal and professional
+      background: "bg-white",
+      surface: "bg-white border border-gray-200 shadow-sm",
       text: "text-gray-900",
       textSecondary: "text-gray-600", 
       textMuted: "text-gray-500",
       accent: "text-blue-600",
-      border: "border-gray-200/50",
+      border: "border-gray-200",
       button: "bg-gray-100 hover:bg-gray-200 text-gray-900",
       select: "[&>option]:bg-white [&>option]:text-gray-900",
-      input: "bg-white/70 border border-gray-200/60 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-400",
+      input: "bg-white border border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-blue-500 focus:border-blue-500",
     }
   }
   
-  // Dark mode (default) - keep current beautiful styling
+  // Predominantly Black Dark Mode - clean and minimal
   return {
-    background: "bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900",
-    surface: "bg-white/10 backdrop-blur-xl border border-white/20",
+    background: "bg-black",
+    surface: "bg-gray-900/80 border border-gray-800/50 shadow-lg",
     text: "text-white",
     textSecondary: "text-gray-300",
     textMuted: "text-gray-400",
     accent: "text-blue-400",
-    border: "border-white/20",
-    button: "bg-white/10 hover:bg-white/20 text-white",
-    select: "[&>option]:bg-slate-800 [&>option]:text-white",
-    input: "bg-white/10 border border-white/20 text-white placeholder-gray-400 focus:ring-blue-500",
+    border: "border-gray-800/50",
+    button: "bg-gray-800/60 hover:bg-gray-700/60 text-white",
+    select: "[&>option]:bg-gray-900 [&>option]:text-white",
+    input: "bg-gray-900/60 border border-gray-700/50 text-white placeholder-gray-400 focus:ring-blue-500 focus:border-blue-400",
   }
 }

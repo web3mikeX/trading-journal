@@ -98,8 +98,11 @@ export async function GET(
     })
 
   } catch (error) {
-    console.error('Calendar GET error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: errorMessage 
+    }, { status: 500 })
   }
 }
 
@@ -201,7 +204,10 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
     }
     
-    console.error('Calendar POST error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: errorMessage 
+    }, { status: 500 })
   }
 }

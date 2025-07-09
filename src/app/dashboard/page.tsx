@@ -39,7 +39,7 @@ function DashboardContent() {
   const themeClasses = getThemeClasses(theme)
   const { isAuthenticated, user, isLoading } = useAuth()
   const router = useRouter()
-  const { stats, loading, error: statsError } = useStats(user?.id || 'demo-user')
+  const { stats, loading, error: statsError } = useStats(user?.id || 'demo-demo-example-com')
   
   // Calendar modal state
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -108,16 +108,7 @@ function DashboardContent() {
     <>
       <Header />
       <div className={`min-h-screen ${themeClasses.background}`}>
-        {/* Background Effects - only show in dark mode */}
-        {theme === 'dark' && (
-          <>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(120,119,198,0.3),rgba(255,255,255,0))]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,219,226,0.4),rgba(255,255,255,0))]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(255,119,198,0.3),rgba(255,255,255,0))]" />
-          </>
-        )}
-        
-        <div className="relative z-10">
+        <div>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -173,7 +164,7 @@ function DashboardContent() {
           <div className="max-w-7xl mx-auto">
             <TradingCalendar 
               onDayClick={handleDayClick}
-              userId={user?.id || 'demo-user'}
+              userId={user?.id || 'demo-demo-example-com'}
             />
           </div>
         </div>
@@ -181,11 +172,11 @@ function DashboardContent() {
         {/* Charts and Recent Trades */}
         <div className="px-6 mb-8">
           <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2">
                 <PerformanceChart data={stats.performanceData} />
               </div>
-              <div>
+              <div className="h-[430px]">
                 <RecentTrades trades={stats.recentTrades} />
               </div>
             </div>
@@ -225,8 +216,12 @@ function DashboardContent() {
         isOpen={isCalendarModalOpen}
         onClose={closeCalendarModal}
         date={selectedDate}
-        userId={user?.id || 'demo-user'}
+        userId={user?.id || 'demo-demo-example-com'}
         initialData={selectedDayData}
+        onSaveSuccess={() => {
+          // Refresh the page after successful save
+          window.location.reload()
+        }}
       />
     </>
   )

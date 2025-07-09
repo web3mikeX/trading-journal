@@ -31,8 +31,8 @@ export default function Header() {
         transition={{ duration: 0.6 }}
         className={`relative z-20 backdrop-blur-xl ${
           theme === 'light' 
-            ? 'border-b border-gray-200/50 bg-white/80' 
-            : 'border-b border-white/10 bg-black/20'
+            ? 'border-b border-gray-200/50 bg-white' 
+            : 'border-b border-white/10 bg-black'
         }`}
       >
         <div className="max-w-7xl mx-auto px-6">
@@ -68,8 +68,8 @@ export default function Header() {
       transition={{ duration: 0.6 }}
       className={`relative z-20 backdrop-blur-xl ${
         theme === 'light' 
-          ? 'border-b border-gray-200/50 bg-white/80' 
-          : 'border-b border-white/10 bg-black/20'
+          ? 'border-b border-gray-200/50 bg-white' 
+          : 'border-b border-white/10 bg-black'
       }`}
     >
       <div className="max-w-7xl mx-auto px-6">

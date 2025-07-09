@@ -31,9 +31,10 @@ export default function RecentTrades({ trades }: RecentTradesProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.3 }}
+      className="h-full"
     >
-      <Card className={themeClasses.surface}>
-        <CardHeader>
+      <Card className={`${themeClasses.surface} h-full flex flex-col`}>
+        <CardHeader className="flex-shrink-0">
           <h3 
             className={`font-semibold leading-none tracking-tight ${isDark ? "text-white" : "text-black"}`}
             style={!isDark ? { color: '#000000 !important', fontWeight: 'bold' } : { color: 'white' }}
@@ -41,14 +42,15 @@ export default function RecentTrades({ trades }: RecentTradesProps) {
             Recent Trades
           </h3>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {trades.length === 0 ? (
-              <p className={`${themeClasses.textSecondary} text-center py-8`}>
-                No trades yet. Start by adding your first trade!
-              </p>
-            ) : (
-              trades.map((trade, index) => (
+        <CardContent className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto">
+            <div className="space-y-4">
+              {trades.length === 0 ? (
+                <p className={`${themeClasses.textSecondary} text-center py-8`}>
+                  No trades yet. Start by adding your first trade!
+                </p>
+              ) : (
+                trades.map((trade, index) => (
                 <motion.div
                   key={trade.id}
                   initial={{ opacity: 0, x: -20 }}
@@ -99,8 +101,9 @@ export default function RecentTrades({ trades }: RecentTradesProps) {
                     )}
                   </div>
                 </motion.div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

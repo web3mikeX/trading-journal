@@ -33,8 +33,8 @@ export const authOptions: NextAuthOptions = {
             })
           }
         } catch (error) {
-          console.error('Error creating demo user:', error)
           // Continue anyway - the user might already exist
+          // Error is expected in demo mode
         }
         
         return {
