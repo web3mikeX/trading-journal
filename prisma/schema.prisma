@@ -46,6 +46,8 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  password      String?   // Hashed password for credentials auth
+  isEmailVerified Boolean @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -83,6 +85,10 @@ model Trade {
   strategy       String?
   setup          String?
   market         String    @default("STOCK") // "STOCK", "FOREX", "CRYPTO", "FUTURES", "OPTIONS"
+  
+  // Contract specifications
+  contractType       String  @default("STANDARD") // "STANDARD", "MICRO", "MINI", "STANDARD_FUTURES", "MICRO_FUTURES"
+  contractMultiplier Float   @default(1.0) // Multiplier for PnL calculations (e.g., $2 for MNQU5)
   
   // Entry details
   entryDate      DateTime

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getContractMultiplier, getContractType } from '@/lib/contractSpecs'
 
 const TradeSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -28,20 +29,40 @@ const TradeSchema = z.object({
 // Calculate P&L for a trade
 function calculatePnL(trade: any) {
   if (!trade.exitPrice || !trade.entryPrice) {
-    return { grossPnL: null, netPnL: null, returnPercent: null }
+    return { 
+      grossPnL: null, 
+      netPnL: null, 
+      returnPercent: null,
+      contractMultiplier: getContractMultiplier(trade.symbol, trade.market),
+      contractType: getContractType(trade.symbol, trade.market)
+    }
   }
 
-  const grossPnL = trade.side === 'LONG' 
-    ? (trade.exitPrice - trade.entryPrice) * trade.quantity
-    : (trade.entryPrice - trade.exitPrice) * trade.quantity
+  // Get contract specifications
+  const contractMultiplier = getContractMultiplier(trade.symbol, trade.market)
+  const contractType = getContractType(trade.symbol, trade.market)
+
+  // Calculate points difference
+  const pointsDifference = trade.side === 'LONG' 
+    ? (trade.exitPrice - trade.entryPrice)
+    : (trade.entryPrice - trade.exitPrice)
+
+  // Apply contract multiplier to calculate gross PnL
+  const grossPnL = pointsDifference * trade.quantity * contractMultiplier
 
   const totalFees = trade.entryFees + trade.exitFees + trade.commission + trade.swap
   const netPnL = grossPnL - totalFees
 
-  const totalInvested = trade.entryPrice * trade.quantity
-  const returnPercent = (netPnL / totalInvested) * 100
+  const totalInvested = trade.entryPrice * trade.quantity * contractMultiplier
+  const returnPercent = totalInvested > 0 ? (netPnL / totalInvested) * 100 : 0
 
-  return { grossPnL, netPnL, returnPercent }
+  return { 
+    grossPnL, 
+    netPnL, 
+    returnPercent,
+    contractMultiplier,
+    contractType
+  }
 }
 
 // GET /api/trades - Get all trades for a user
@@ -95,6 +116,8 @@ export async function POST(request: NextRequest) {
         grossPnL: pnlData.grossPnL,
         netPnL: pnlData.netPnL,
         returnPercent: pnlData.returnPercent,
+        contractMultiplier: pnlData.contractMultiplier,
+        contractType: pnlData.contractType,
         status: validatedData.exitDate ? 'CLOSED' : 'OPEN'
       },
       include: {

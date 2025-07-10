@@ -38,6 +38,9 @@ interface ParsedTrade {
   returnPercent?: number
   status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
   dataSource?: string
+  commission?: number
+  entryFees?: number
+  exitFees?: number
   isValid: boolean
   errors: string[]
 }
@@ -191,10 +194,22 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         const buyTime = findColumnValue(row, headers, ['boughttimestamp'])
         const sellTime = findColumnValue(row, headers, ['soldtimestamp'])
         const pnlString = findColumnValue(row, headers, ['pnl'])
-        const netPnL = parsePnL(pnlString)
+        const grossPnL = parsePnL(pnlString) // This is gross P&L from Tradovate
+        
+        // Look for commission/fee columns in Tradovate CSV
+        const commission = parseFloat(findColumnValue(row, headers, ['commission', 'commissions', 'comm']) || '0')
+        const fees = parseFloat(findColumnValue(row, headers, ['fees', 'fee', 'costs', 'cost']) || '0')
+        const exchange_fees = parseFloat(findColumnValue(row, headers, ['exchange fee', 'exchange fees', 'exch fee']) || '0')
+        const clearing_fees = parseFloat(findColumnValue(row, headers, ['clearing fee', 'clearing fees', 'clear fee']) || '0')
+        const regulatory_fees = parseFloat(findColumnValue(row, headers, ['regulatory fee', 'reg fee', 'nfa fee']) || '0')
+        
+        // Total fees calculation
+        const totalFees = commission + fees + exchange_fees + clearing_fees + regulatory_fees
+        const netPnL = grossPnL - totalFees
         
         console.log('Tradovate parsing debug:', {
-          symbol: trade.symbol, buyPrice, sellPrice, quantity, buyTime, sellTime, pnlString, netPnL
+          symbol: trade.symbol, buyPrice, sellPrice, quantity, buyTime, sellTime, 
+          pnlString, grossPnL, totalFees, netPnL, commission, fees
         })
         
         // Enhanced Tradovate date parsing - handle MM/dd/yyyy HH:mm:ss format
@@ -287,12 +302,16 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         trade.quantity = quantity
         trade.market = 'FUTURES'
         
-        // Enhanced P&L handling with validation
-        if (netPnL !== undefined && netPnL !== 0) {
+        // Enhanced P&L handling with proper gross/net separation
+        if (grossPnL !== undefined && grossPnL !== 0) {
+          trade.grossPnL = grossPnL
           trade.netPnL = netPnL
-          trade.grossPnL = netPnL // For Tradovate, this is net after fees
+          trade.commission = commission
+          trade.entryFees = fees / 2 // Split total fees between entry and exit
+          trade.exitFees = fees / 2
+          // Note: exchange_fees, clearing_fees, regulatory_fees stored in commission field
           
-          // Calculate return percentage if possible
+          // Calculate return percentage based on net P&L
           if (trade.entryPrice > 0 && trade.quantity > 0) {
             const notionalValue = trade.entryPrice * trade.quantity
             if (notionalValue > 0) {

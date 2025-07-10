@@ -79,6 +79,7 @@ export async function GET(
 
     // Group trades by date
     const tradesByDate: { [date: string]: typeof trades } = {}
+    
     trades.forEach(trade => {
       const dateKey = trade.entryDate.toISOString().split('T')[0]
       if (!tradesByDate[dateKey]) {

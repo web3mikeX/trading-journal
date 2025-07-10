@@ -16,12 +16,18 @@ export function formatPercentage(value: number, decimals = 2) {
   return `${value.toFixed(decimals)}%`
 }
 
-export function calculatePnL(entryPrice: number, exitPrice: number, quantity: number, side: "LONG" | "SHORT") {
-  if (side === "LONG") {
-    return (exitPrice - entryPrice) * quantity
-  } else {
-    return (entryPrice - exitPrice) * quantity
-  }
+export function calculatePnL(
+  entryPrice: number, 
+  exitPrice: number, 
+  quantity: number, 
+  side: "LONG" | "SHORT", 
+  multiplier: number = 1.0
+) {
+  const pointsDifference = side === "LONG" 
+    ? (exitPrice - entryPrice)
+    : (entryPrice - exitPrice)
+    
+  return pointsDifference * quantity * multiplier
 }
 
 export function calculateReturnPercentage(entryPrice: number, exitPrice: number, side: "LONG" | "SHORT") {

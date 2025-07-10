@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 
 export const authOptions: NextAuthOptions = {
@@ -11,37 +12,36 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email) return null
-        
-        // Demo mode - accept any email and create user if not exists
-        const userId = `demo-${credentials.email.replace(/[^a-zA-Z0-9]/g, '-')}`
-        
-        try {
-          // Check if user exists, if not create it
-          const existingUser = await prisma.user.findUnique({
-            where: { id: userId }
-          })
-          
-          if (!existingUser) {
-            await prisma.user.create({
-              data: {
-                id: userId,
-                email: credentials.email,
-                name: credentials.email.split('@')[0],
-                image: null,
-              }
-            })
-          }
-        } catch (error) {
-          // Continue anyway - the user might already exist
-          // Error is expected in demo mode
+        if (!credentials?.email || !credentials?.password) {
+          return null
         }
         
-        return {
-          id: userId,
-          email: credentials.email,
-          name: credentials.email.split('@')[0],
-          image: null,
+        try {
+          // Find user by email
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email }
+          })
+          
+          if (!user || !user.password) {
+            return null
+          }
+          
+          // Verify password
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
+          
+          if (!isPasswordValid) {
+            return null
+          }
+          
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          }
+        } catch (error) {
+          console.error('Authentication error:', error)
+          return null
         }
       }
     })

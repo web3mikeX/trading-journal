@@ -1,64 +1,77 @@
 "use client"
 
-import { useState } from "react"
-import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { signIn, getSession } from "next-auth/react"
+import { useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { motion } from "framer-motion"
-import { 
-  MailIcon, 
-  Github,
-  Chrome,
-  ArrowRightIcon
-} from "lucide-react"
-import ThemeToggle from "@/components/ThemeToggle"
+import { LogIn, Eye, EyeOff, Loader2, Mail, Lock, UserPlus, AlertCircle } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
+import ThemeToggle from "@/components/ThemeToggle"
 
 export default function SignIn() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  
-  const [email, setEmail] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const handleCredentialsSignIn = async (e: React.FormEvent) => {
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
+  // Check for success message from registration
+  useEffect(() => {
+    const messageParam = searchParams.get('message')
+    if (messageParam) {
+      setMessage(messageParam)
+    }
+  }, [searchParams])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
-    setError("")
+    setIsLoading(true)
+    setError('')
 
     try {
       const result = await signIn("credentials", {
-        email,
+        email: formData.email,
+        password: formData.password,
         redirect: false,
       })
 
       if (result?.error) {
-        setError("Failed to sign in")
+        setError("Invalid email or password")
       } else {
-        router.push("/dashboard")
+        // Check if sign in was successful
+        const session = await getSession()
+        if (session) {
+          router.push("/dashboard")
+        } else {
+          setError("Sign in failed. Please try again.")
+        }
       }
-    } catch {
-      setError("An error occurred")
+    } catch (error) {
+      setError("Something went wrong. Please try again.")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const handleProviderSignIn = async (provider: string) => {
-    setLoading(true)
-    try {
-      await signIn(provider, { callbackUrl: "/dashboard" })
-    } catch {
-      setError("Failed to sign in with " + provider)
-      setLoading(false)
-    }
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (error) setError('')
   }
 
   return (
-    <div className={`min-h-screen flex items-center justify-center ${themeClasses.background} relative`}>
-      {/* Theme toggle button */}
+    <div className={`min-h-screen ${themeClasses.background} flex flex-col items-center justify-center relative`}>
+      {/* Theme Toggle */}
       <div className="absolute top-6 right-6 z-50">
         <ThemeToggle variant="standalone" />
       </div>
@@ -66,116 +79,141 @@ export default function SignIn() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="relative z-10 max-w-md w-full mx-4"
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md px-6"
       >
-        <div className={`${themeClasses.surface} rounded-xl p-8 shadow-2xl`}>
-          {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className={`text-3xl font-bold ${themeClasses.text} mb-2`}>
-              Trading Journal
-            </h1>
-            <p className={themeClasses.textSecondary}>
-              Sign in to track your trading performance
-            </p>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg"
-            >
-              <p className="text-red-400 text-sm">{error}</p>
-            </motion.div>
-          )}
-
-          {/* Quick Demo Sign In */}
-          <div className="mb-6">
-            <form onSubmit={handleCredentialsSignIn} className="space-y-4">
-              <div>
-                <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>
-                  Email (Demo Mode)
-                </label>
-                <div className="relative">
-                  <MailIcon className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${themeClasses.textMuted} w-5 h-5`} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full pl-10 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 ${themeClasses.input}`}
-                    placeholder="Enter any email"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>Sign In</span>
-                    <ArrowRightIcon className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-
-          {/* Quick Demo Button */}
-          <div className="mb-6">
-            <button
-              onClick={() => setEmail("demo@example.com")}
-              className="w-full py-2 px-4 bg-green-600/20 hover:bg-green-600/30 border border-green-500/50 text-green-400 rounded-lg transition-colors text-sm"
-            >
-              🚀 Fill Demo Email
-            </button>
-          </div>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-slate-900/50 text-gray-400">Or continue with</span>
-            </div>
-          </div>
-
-          {/* OAuth Providers */}
-          <div className="space-y-3">
-            <button
-              onClick={() => handleProviderSignIn("google")}
-              disabled={loading}
-              className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg transition-colors flex items-center justify-center space-x-3 disabled:opacity-50"
-            >
-              <Chrome className="w-5 h-5" />
-              <span>Continue with Google</span>
-            </button>
-
-            <button
-              onClick={() => handleProviderSignIn("github")}
-              disabled={loading}
-              className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-lg transition-colors flex items-center justify-center space-x-3 disabled:opacity-50"
-            >
-              <Github className="w-5 h-5" />
-              <span>Continue with GitHub</span>
-            </button>
-          </div>
-
-          {/* Demo Info */}
-          <div className="mt-8 p-4 bg-blue-500/20 border border-blue-500/50 rounded-lg">
-            <p className="text-blue-300 text-sm">
-              <strong>Demo Mode:</strong> Enter any email to create/access a demo account. No password required!
-            </p>
-          </div>
+        {/* Header */}
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+            className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"
+          >
+            <LogIn className="w-8 h-8 text-white" />
+          </motion.div>
+          <h1 className={`text-3xl font-bold ${themeClasses.text} mb-2`}>
+            Welcome Back
+          </h1>
+          <p className={`${themeClasses.textSecondary}`}>
+            Sign in to your trading journal
+          </p>
         </div>
+
+        {/* Success Message */}
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6"
+          >
+            <p className="text-green-600 dark:text-green-400 text-sm text-center">{message}</p>
+          </motion.div>
+        )}
+
+        {/* Sign In Form */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className={`${themeClasses.surface} rounded-xl shadow-xl border ${themeClasses.border} p-8`}
+        >
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+
+            {/* Email Field */}
+            <div>
+              <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>
+                Email Address
+              </label>
+              <div className="relative">
+                <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${themeClasses.textSecondary}`} />
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-lg border ${themeClasses.border} ${themeClasses.input} focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-colors`}
+                  placeholder="Enter your email"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <label className={`block text-sm font-medium ${themeClasses.text} mb-2`}>
+                Password
+              </label>
+              <div className="relative">
+                <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${themeClasses.textSecondary}`} />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  className={`w-full pl-10 pr-12 py-3 rounded-lg border ${themeClasses.border} ${themeClasses.input} focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-colors`}
+                  placeholder="Enter your password"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className={`absolute right-3 top-1/2 transform -translate-y-1/2 ${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors`}
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading || !formData.email || !formData.password}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-5 h-5" />
+                  <span>Sign In</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Register Link */}
+          <div className="mt-6 text-center">
+            <p className={`text-sm ${themeClasses.textSecondary}`}>
+              Don't have an account?{' '}
+              <Link
+                href="/auth/register"
+                className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center space-x-1"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Create Account</span>
+              </Link>
+            </p>
+          </div>
+
+          {/* Demo Mode Notice */}
+          <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-yellow-700 dark:text-yellow-400 text-xs text-center">
+              🚧 This is a beta version. Your data is stored locally and may be reset during updates.
+            </p>
+          </div>
+        </motion.div>
       </motion.div>
     </div>
   )

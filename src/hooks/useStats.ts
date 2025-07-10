@@ -42,8 +42,7 @@ export function useStats(userId: string) {
       setError(null)
       
       const response = await fetch(`/api/stats?userId=${userId}`, {
-        cache: 'force-cache',
-        next: { revalidate: 60 }
+        cache: 'no-store'
       })
       
       if (!response.ok) {

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { startOfDay, endOfDay } from 'date-fns'
 
 const calendarEntrySchema = z.object({
   userId: z.string(),
@@ -20,18 +19,21 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
+
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
-    // Parse and validate date
+    // Parse and validate date - use UTC to match database storage
     const targetDate = new Date(date)
     if (isNaN(targetDate.getTime())) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
     }
 
-    const dayStart = startOfDay(targetDate)
-    const dayEnd = endOfDay(targetDate)
+    // Use UTC date ranges to match how trades are stored in the database
+    const dayStart = new Date(date + 'T00:00:00.000Z')
+    const dayEnd = new Date(date + 'T23:59:59.999Z')
+    
 
     // Get trades for this date
     const trades = await prisma.trade.findMany({
@@ -56,6 +58,8 @@ export async function GET(
         exitDate: true
       }
     })
+
+
 
     // Calculate daily stats
     const dailyPnL = trades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
@@ -118,14 +122,15 @@ export async function POST(
     // Validate request body
     const validatedData = calendarEntrySchema.parse(body)
     
-    // Parse and validate date
+    // Parse and validate date - use UTC to match database storage
     const targetDate = new Date(date)
     if (isNaN(targetDate.getTime())) {
       return NextResponse.json({ error: 'Invalid date format' }, { status: 400 })
     }
 
-    const dayStart = startOfDay(targetDate)
-    const dayEnd = endOfDay(targetDate)
+    // Use UTC date ranges to match how trades are stored in the database
+    const dayStart = new Date(date + 'T00:00:00.000Z')
+    const dayEnd = new Date(date + 'T23:59:59.999Z')
 
     // Calculate fresh daily stats from trades
     const trades = await prisma.trade.findMany({

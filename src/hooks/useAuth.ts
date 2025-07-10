@@ -22,12 +22,12 @@ export function useAuth() {
   }
   
   if (!session && demoMode) {
-    // Demo mode - return demo user with consistent ID
+    // Demo mode - return mike's user for testing with real data
     return {
       user: {
-        id: "demo-demo-example-com",
-        email: "demo@example.com",
-        name: "Demo User",
+        id: "cmcwu8b5m0001m17ilm0triy8",
+        email: "degenbitkid@gmail.com",
+        name: "mike",
         image: null,
       },
       isAuthenticated: true,
@@ -38,6 +38,6 @@ export function useAuth() {
   return {
     user: session?.user || null,
     isAuthenticated: !!session,
-    isLoading: status === "loading",
+    isLoading: false,
   }
 }
