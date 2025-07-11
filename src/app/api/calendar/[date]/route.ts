@@ -119,6 +119,10 @@ export async function POST(
     const { date } = await params
     const body = await request.json()
     
+    console.log('POST /api/calendar/[date] received:')
+    console.log('- Date param:', date)
+    console.log('- Request body:', body)
+    
     // Validate request body
     const validatedData = calendarEntrySchema.parse(body)
     
@@ -205,11 +209,15 @@ export async function POST(
     })
 
   } catch (error) {
+    console.error('POST /api/calendar/[date] error:', error)
+    
     if (error instanceof z.ZodError) {
+      console.error('Zod validation errors:', error.errors)
       return NextResponse.json({ error: 'Invalid request data', details: error.errors }, { status: 400 })
     }
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Internal server error:', errorMessage)
     return NextResponse.json({ 
       error: 'Internal server error', 
       details: errorMessage 
