@@ -44,7 +44,7 @@ function DashboardContent() {
   const [mounted, setMounted] = useState(false)
   
   // All hooks must be called consistently - moved to top level
-  const { stats, loading: statsLoading, error: statsError } = useStats(user?.id || 'demo-demo-example-com')
+  const { stats, loading: statsLoading, error: statsError } = useStats(user?.id || '')
   
   // Calendar modal state - always declared
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -97,7 +97,7 @@ function DashboardContent() {
 
   useEffect(() => {
     if (mounted && !isLoading && !isAuthenticated) {
-      router.push("/auth/signin")
+      router.push("/auth/register")
     }
   }, [mounted, isAuthenticated, isLoading, router])
 
@@ -148,8 +148,17 @@ function DashboardContent() {
 
   if (statsError) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${themeClasses.background}`}>
-        <div className="text-lg text-red-400">Error loading dashboard: {statsError}</div>
+      <div className={`min-h-screen flex flex-col items-center justify-center ${themeClasses.background}`}>
+        <div className="text-lg text-red-400 mb-4">Error loading dashboard: {statsError}</div>
+        <div className="text-sm text-gray-500 mb-4">
+          It looks like you need to create an account first.
+        </div>
+        <button 
+          onClick={() => router.push("/auth/register")}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          Create Account
+        </button>
       </div>
     )
   }
@@ -227,7 +236,7 @@ function DashboardContent() {
             }>
               <TradingCalendar 
                 onDayClick={handleDayClick}
-                userId={user?.id || 'demo-demo-example-com'}
+                userId={user?.id || ''}
               />
             </ErrorBoundary>
           </div>
@@ -284,7 +293,7 @@ function DashboardContent() {
         isOpen={isCalendarModalOpen}
         onClose={closeCalendarModal}
         date={selectedDate}
-        userId={user?.id || 'demo-demo-example-com'}
+        userId={user?.id || ''}
         initialData={memoizedSelectedDayData}
         onSaveSuccess={onSaveSuccess}
       />
