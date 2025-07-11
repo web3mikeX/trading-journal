@@ -119,6 +119,12 @@ model Trade {
   screenshots    String?     // JSON array of screenshot URLs
   dataSource     String      @default("manual") // "manual", "csv", "api", "email"
   
+  // Duplicate detection
+  tradeHash      String?     // SHA-256 hash for quick duplicate detection
+  isDuplicate    Boolean     @default(false) // Flag indicating if this is a known duplicate
+  originalTradeId String?    // Reference to original trade if this is a duplicate
+  duplicateChecksum String?  // Content checksum for verification
+  
   // Enhanced CSV and execution data
   rawCsvData     String?     // JSON string of original CSV row data
   fillIds        String?     // JSON array of broker fill IDs (buyFillId, sellFillId)
@@ -141,6 +147,9 @@ model Trade {
   @@index([userId, entryDate])
   @@index([userId, symbol])
   @@index([userId, status])
+  @@index([tradeHash]) // For quick duplicate detection
+  @@index([userId, symbol, entryDate]) // For duplicate detection by key fields
+  @@unique([userId, symbol, entryDate, entryPrice, quantity, side], name: "unique_trade_combo")
 }
 
 model JournalEntry {
