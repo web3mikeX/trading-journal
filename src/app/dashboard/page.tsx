@@ -18,6 +18,7 @@ import PerformanceChart from "@/components/Dashboard/PerformanceChart"
 import RecentTrades from "@/components/Dashboard/RecentTrades"
 import TradingCalendar from "@/components/TradingCalendar"
 import CalendarDayModal from "@/components/CalendarDayModal"
+import TradeDetailModal from "@/components/TradeDetailModal"
 import Header from "@/components/Header"
 import { formatCurrency } from "@/lib/utils"
 import { useStats } from "@/hooks/useStats"
@@ -45,6 +46,10 @@ function DashboardContent() {
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [selectedDayData, setSelectedDayData] = useState<CalendarDayData | undefined>()
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false)
+  
+  // Trade detail modal state
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
+  const [isTradeDetailModalOpen, setIsTradeDetailModalOpen] = useState(false)
 
   const handleDayClick = (date: string, dayData?: CalendarDayData) => {
     setSelectedDate(date)
@@ -56,6 +61,16 @@ function DashboardContent() {
     setIsCalendarModalOpen(false)
     setSelectedDate('')
     setSelectedDayData(undefined)
+  }
+
+  const handleTradeClick = (tradeId: string) => {
+    setSelectedTradeId(tradeId)
+    setIsTradeDetailModalOpen(true)
+  }
+
+  const closeTradeDetailModal = () => {
+    setIsTradeDetailModalOpen(false)
+    setSelectedTradeId(null)
   }
 
   useEffect(() => {
@@ -177,7 +192,11 @@ function DashboardContent() {
                 <PerformanceChart data={stats.performanceData} />
               </div>
               <div className="h-[430px]">
-                <RecentTrades trades={stats.recentTrades} />
+                <RecentTrades 
+                  trades={stats.recentTrades} 
+                  weekMetadata={stats.weekMetadata}
+                  onTradeClick={handleTradeClick}
+                />
               </div>
             </div>
           </div>
@@ -220,6 +239,21 @@ function DashboardContent() {
         initialData={selectedDayData}
         onSaveSuccess={() => {
           // Refresh the page after successful save
+          window.location.reload()
+        }}
+      />
+
+      {/* Trade Detail Modal */}
+      <TradeDetailModal
+        isOpen={isTradeDetailModalOpen}
+        onClose={closeTradeDetailModal}
+        tradeId={selectedTradeId}
+        onEdit={(tradeId) => {
+          closeTradeDetailModal()
+          router.push(`/trades?edit=${tradeId}`)
+        }}
+        onDelete={() => {
+          closeTradeDetailModal()
           window.location.reload()
         }}
       />

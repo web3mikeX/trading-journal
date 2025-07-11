@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns'
+import { getCurrentWeekRange, formatWeekRange, filterTradesByWeek } from '@/lib/dateUtils'
 
-// GET /api/stats - Get trading statistics for dashboard
+// GET /api/stats - Get trading statistics for dashboard (updated for week-based recent trades)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -91,8 +92,16 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Recent trades (last 10)
-    const recentTrades = allTrades.slice(0, 10).map(trade => ({
+    // Recent trades (current week's trades)
+    console.log('DEBUG: Getting current week range...')
+    const { start: weekStart, end: weekEnd } = getCurrentWeekRange()
+    console.log('DEBUG: Week range:', weekStart.toISOString(), 'to', weekEnd.toISOString())
+    const currentWeekTrades = filterTradesByWeek(allTrades, weekStart, weekEnd)
+    console.log('DEBUG: Current week trades:', currentWeekTrades.length)
+    const weekLabel = formatWeekRange(weekStart, weekEnd)
+    console.log('DEBUG: Week label:', weekLabel)
+    
+    const recentTrades = currentWeekTrades.map(trade => ({
       id: trade.id,
       symbol: trade.symbol,
       side: trade.side,
@@ -101,6 +110,14 @@ export async function GET(request: NextRequest) {
       netPnL: trade.netPnL,
       status: trade.status
     }))
+    
+    // Add week metadata
+    const weekMetadata = {
+      weekStart,
+      weekEnd,
+      weekLabel,
+      tradeCount: currentWeekTrades.length
+    }
 
     const response = NextResponse.json({
       totalPnL: Number(totalPnL.toFixed(2)),
@@ -114,6 +131,7 @@ export async function GET(request: NextRequest) {
       currentMonthReturn: Number(currentMonthReturn.toFixed(1)),
       performanceData,
       recentTrades,
+      weekMetadata,
       winningTrades: winningTrades.length,
       losingTrades: losingTrades.length
     })

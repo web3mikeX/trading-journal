@@ -24,6 +24,20 @@ const TradeSchema = z.object({
   swap: z.number().default(0),
   notes: z.string().optional(),
   dataSource: z.string().default('manual'),
+  
+  // Enhanced CSV and execution data
+  rawCsvData: z.string().optional(),
+  fillIds: z.string().optional(),
+  executionMetadata: z.string().optional(),
+  timingData: z.string().optional(),
+  slippage: z.number().optional(),
+  orderDetails: z.string().optional(),
+  
+  // Advanced performance metrics
+  maxAdverseExcursion: z.number().optional(),
+  maxFavorableExcursion: z.number().optional(),
+  commissionPerUnit: z.number().optional(),
+  executionDuration: z.number().optional(),
 })
 
 // Calculate P&L for a trade

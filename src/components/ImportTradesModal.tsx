@@ -41,8 +41,23 @@ interface ParsedTrade {
   commission?: number
   entryFees?: number
   exitFees?: number
+  swap?: number
   isValid: boolean
   errors: string[]
+  
+  // Enhanced CSV and execution data
+  rawCsvData?: string
+  fillIds?: string
+  executionMetadata?: string
+  timingData?: string
+  slippage?: number
+  orderDetails?: string
+  
+  // Advanced performance metrics
+  maxAdverseExcursion?: number
+  maxFavorableExcursion?: number
+  commissionPerUnit?: number
+  executionDuration?: number
 }
 
 export default function ImportTradesModal({ isOpen, onClose, onImportComplete }: ImportTradesModalProps) {
@@ -162,7 +177,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
     const headers = data[0].map((h: string) => h.toLowerCase().trim())
     const rows = data.slice(1)
     
-    // Auto-detect Tradovate format based on column names
+    // Auto-detect Tradovate format based on column names (headers are already lowercase)
     const isTradovateFormat = headers.includes('buyprice') && headers.includes('sellprice') && 
                               headers.includes('boughttimestamp') && headers.includes('soldtimestamp')
     
@@ -203,13 +218,15 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         const clearing_fees = parseFloat(findColumnValue(row, headers, ['clearing fee', 'clearing fees', 'clear fee']) || '0')
         const regulatory_fees = parseFloat(findColumnValue(row, headers, ['regulatory fee', 'reg fee', 'nfa fee']) || '0')
         
-        // Total fees calculation
+        // Total fees calculation - if no commission columns exist, use a standard commission estimate
         const totalFees = commission + fees + exchange_fees + clearing_fees + regulatory_fees
-        const netPnL = grossPnL - totalFees
+        const estimatedCommission = totalFees === 0 ? 1.34 : 0 // Estimate $1.34 commission for Tradovate (typical rate)
+        const finalTotalFees = totalFees + estimatedCommission
+        const netPnL = grossPnL - finalTotalFees
         
         console.log('Tradovate parsing debug:', {
           symbol: trade.symbol, buyPrice, sellPrice, quantity, buyTime, sellTime, 
-          pnlString, grossPnL, totalFees, netPnL, commission, fees
+          pnlString, grossPnL, totalFees, estimatedCommission, finalTotalFees, netPnL, commission, fees
         })
         
         // Enhanced Tradovate date parsing - handle MM/dd/yyyy HH:mm:ss format
@@ -274,18 +291,74 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
             } else {
               trade.side = sellPrice < buyPrice ? 'LONG' : 'SHORT'
             }
-            
-            if (trade.side === 'LONG') {
-              trade.entryDate = buyDate.toISOString()
-              trade.entryPrice = buyPrice
-              trade.exitDate = sellDate.toISOString()
-              trade.exitPrice = sellPrice
-            } else {
-              trade.entryDate = sellDate.toISOString()
-              trade.entryPrice = sellPrice
-              trade.exitDate = buyDate.toISOString()
-              trade.exitPrice = buyPrice
+          }
+          
+          // Enhanced data capture for detailed trade analysis
+          // Store raw CSV data for detailed analysis
+          const rawCsvData = {
+            originalRow: row,
+            headers: headers,
+            parsedValues: {
+              symbol: trade.symbol,
+              buyPrice, sellPrice, quantity, buyTime, sellTime, pnlString,
+              commission, fees, exchange_fees, clearing_fees, regulatory_fees
             }
+          }
+          
+          // Extract fill IDs if available
+          const buyFillId = findColumnValue(row, headers, ['buyfillid', 'buy_fill_id', 'buyid'])
+          const sellFillId = findColumnValue(row, headers, ['sellfillid', 'sell_fill_id', 'sellid'])
+          const fillIds = []
+          if (buyFillId) fillIds.push(buyFillId)
+          if (sellFillId) fillIds.push(sellFillId)
+          
+          // Extract execution metadata
+          const priceFormat = findColumnValue(row, headers, ['_priceformat', 'priceformat'])
+          const priceFormatType = findColumnValue(row, headers, ['_priceformattype', 'priceformattype'])
+          const tickSize = findColumnValue(row, headers, ['_ticksize', 'ticksize'])
+          const duration = findColumnValue(row, headers, ['duration'])
+          
+          const executionMetadata = {
+            priceFormat: priceFormat ? parseInt(priceFormat) : null,
+            priceFormatType: priceFormatType ? parseInt(priceFormatType) : null,
+            tickSize: tickSize ? parseFloat(tickSize) : null,
+            duration: duration
+          }
+          
+          // Calculate timing data
+          const executionDuration = buyDate && sellDate ? 
+            Math.abs(sellDate.getTime() - buyDate.getTime()) : null
+          
+          const timingData = {
+            buyTimestamp: buyDate?.toISOString(),
+            sellTimestamp: sellDate?.toISOString(),
+            executionDuration: executionDuration,
+            durationString: duration
+          }
+          
+          // Calculate slippage (if we had market data, we could calculate this more precisely)
+          // For now, we'll use a placeholder that can be enhanced later
+          const slippage = null // Can be calculated if we have bid/ask data
+          
+          // Store enhanced data
+          trade.rawCsvData = JSON.stringify(rawCsvData)
+          trade.fillIds = fillIds.length > 0 ? JSON.stringify(fillIds) : undefined
+          trade.executionMetadata = JSON.stringify(executionMetadata)
+          trade.timingData = JSON.stringify(timingData)
+          trade.slippage = slippage || undefined
+          trade.executionDuration = executionDuration || undefined
+          trade.commissionPerUnit = finalTotalFees > 0 ? finalTotalFees / quantity : undefined
+          
+          if (trade.side === 'LONG') {
+            trade.entryDate = buyDate.toISOString()
+            trade.entryPrice = buyPrice
+            trade.exitDate = sellDate.toISOString()
+            trade.exitPrice = sellPrice
+          } else {
+            trade.entryDate = sellDate.toISOString()
+            trade.entryPrice = sellPrice
+            trade.exitDate = buyDate.toISOString()
+            trade.exitPrice = buyPrice
           }
         } else {
           // Fallback if dates are invalid
@@ -306,10 +379,10 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         if (grossPnL !== undefined && grossPnL !== 0) {
           trade.grossPnL = grossPnL
           trade.netPnL = netPnL
-          trade.commission = commission
+          trade.commission = finalTotalFees // Total commission including estimated commission
           trade.entryFees = fees / 2 // Split total fees between entry and exit
           trade.exitFees = fees / 2
-          // Note: exchange_fees, clearing_fees, regulatory_fees stored in commission field
+          // Note: exchange_fees, clearing_fees, regulatory_fees and estimated commission stored in commission field
           
           // Calculate return percentage based on net P&L
           if (trade.entryPrice > 0 && trade.quantity > 0) {
@@ -331,6 +404,20 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         trade.entryDate = findColumnValue(row, headers, ['date', 'time', 'timestamp', 'order date'])
         trade.entryPrice = parseFloat(findColumnValue(row, headers, ['price', 'entry price', 'fill price']))
         trade.quantity = Math.abs(parseFloat(findColumnValue(row, headers, ['quantity', 'qty', 'shares', 'size'])))
+        
+        // For generic imports, check if there's P&L data and apply commission estimation
+        const pnlString = findColumnValue(row, headers, ['pnl', 'p&l', 'profit', 'profit/loss'])
+        if (pnlString) {
+          const grossPnL = parsePnL(pnlString)
+          const commission = parseFloat(findColumnValue(row, headers, ['commission', 'commissions', 'comm', 'fees', 'fee']) || '0')
+          const estimatedCommission = commission === 0 ? 1.34 : 0 // Estimate $1.34 commission if no commission data
+          const finalTotalFees = commission + estimatedCommission
+          const netPnL = grossPnL - finalTotalFees
+          
+          trade.grossPnL = grossPnL
+          trade.netPnL = netPnL
+          trade.commission = finalTotalFees
+        }
       }
 
       // Enhanced validation with better error messages
@@ -572,10 +659,24 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           status: trade.status || (trade.exitDate ? 'CLOSED' : 'OPEN'),
           
           // Additional fields for better tracking
-          entryFees: 0, // Default for CSV imports
-          exitFees: 0,  // Default for CSV imports
-          commission: 0, // P&L from Tradovate is already net
-          swap: 0
+          entryFees: trade.entryFees || 0,
+          exitFees: trade.exitFees || 0,
+          commission: trade.commission || 0, // Use calculated commission values
+          swap: trade.swap || 0,
+          
+          // Enhanced CSV and execution data
+          ...(trade.rawCsvData && { rawCsvData: trade.rawCsvData }),
+          ...(trade.fillIds && { fillIds: trade.fillIds }),
+          ...(trade.executionMetadata && { executionMetadata: trade.executionMetadata }),
+          ...(trade.timingData && { timingData: trade.timingData }),
+          ...(trade.slippage !== undefined && { slippage: trade.slippage }),
+          ...(trade.orderDetails && { orderDetails: trade.orderDetails }),
+          
+          // Advanced performance metrics
+          ...(trade.maxAdverseExcursion !== undefined && { maxAdverseExcursion: trade.maxAdverseExcursion }),
+          ...(trade.maxFavorableExcursion !== undefined && { maxFavorableExcursion: trade.maxFavorableExcursion }),
+          ...(trade.commissionPerUnit !== undefined && { commissionPerUnit: trade.commissionPerUnit }),
+          ...(trade.executionDuration !== undefined && { executionDuration: trade.executionDuration })
         }
 
         console.log(`Importing trade ${i + 1}:`, tradeData)
