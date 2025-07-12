@@ -217,54 +217,18 @@ export async function POST(request: NextRequest) {
       fillIds: validatedData.fillIds
     }
 
-    // TEMPORARY: Skip duplicate checking until schema migration completes
-    // Check for duplicates unless explicitly skipped
-    if (!validatedData.skipDuplicateCheck) {
-      try {
-        const duplicateCheck = await checkForDuplicates(tradeIdentifier)
-        
-        if (duplicateCheck.bestMatch && !validatedData.force) {
-          const { trade: existingTrade, result } = duplicateCheck.bestMatch
-          
-          return NextResponse.json({
-            error: 'Duplicate trade detected',
-            isDuplicate: true,
-            duplicateInfo: {
-              existingTradeId: existingTrade.id,
-              confidence: result.confidence,
-              reason: result.duplicateReason,
-              existingTrade: {
-                id: existingTrade.id,
-                symbol: existingTrade.symbol,
-                side: existingTrade.side,
-                entryDate: existingTrade.entryDate,
-                entryPrice: existingTrade.entryPrice,
-                quantity: existingTrade.quantity,
-                createdAt: existingTrade.createdAt
-              }
-            },
-            options: {
-              force: 'Import anyway (set force: true)',
-              skip: 'Skip this trade',
-              update: 'Update existing trade with new data'
-            }
-          }, { status: 409 }) // 409 Conflict
-        }
-      } catch (error) {
-        console.log('Duplicate detection failed (schema not migrated yet), proceeding with import:', error.message)
-        // Continue with import if duplicate detection fails
-      }
-    }
+    // TEMPORARY: Skip ALL duplicate checking until schema migration completes
+    console.log('Duplicate checking skipped - schema migration in progress')
 
-    // Generate hash and checksum for the new trade
-    const tradeHash = generateTradeHash(tradeIdentifier)
-    const duplicateChecksum = generateContentChecksum(validatedData)
+    // Skip hash generation during migration period
+    let tradeHash = ''
+    let duplicateChecksum = ''
 
     // Calculate P&L if exit data is provided
     const pnlData = calculatePnL(validatedData)
 
-    // Prepare trade data with duplicate detection fields (if supported)
-    const baseTradeData = {
+    // TEMPORARY: Use only basic trade data during schema migration
+    const tradeData = {
       ...validatedData,
       entryDate: new Date(validatedData.entryDate),
       exitDate: validatedData.exitDate ? new Date(validatedData.exitDate) : null,
@@ -279,46 +243,16 @@ export async function POST(request: NextRequest) {
       skipDuplicateCheck: undefined
     }
 
-    // Try to add duplicate detection fields, fall back if schema not updated
-    let tradeData = baseTradeData
-    try {
-      tradeData = {
-        ...baseTradeData,
-        tradeHash,
-        duplicateChecksum,
-        isDuplicate: validatedData.force, // Mark as duplicate if forced
+    const trade = await prisma.trade.create({
+      data: tradeData,
+      include: {
+        tags: {
+          include: {
+            tag: true
+          }
+        }
       }
-    } catch (error) {
-      console.log('Duplicate detection fields not available, using basic trade data')
-      tradeData = baseTradeData
-    }
-
-    let trade
-    try {
-      trade = await prisma.trade.create({
-        data: tradeData,
-        include: {
-          tags: {
-            include: {
-              tag: true
-            }
-          }
-        }
-      })
-    } catch (error) {
-      // If duplicate detection fields cause error, try without them
-      console.log('Failed with duplicate detection fields, retrying without them:', error.message)
-      trade = await prisma.trade.create({
-        data: baseTradeData,
-        include: {
-          tags: {
-            include: {
-              tag: true
-            }
-          }
-        }
-      })
-    }
+    })
 
     return NextResponse.json(trade, { status: 201 })
   } catch (error) {
