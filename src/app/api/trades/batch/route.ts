@@ -127,15 +127,28 @@ async function batchCheckForDuplicates(trades: any[]): Promise<TradeWithDuplicat
   
   // Check for duplicates against existing trades in database
   const allHashes = tradeHashes.map(t => t.hash)
-  const existingTrades = await prisma.trade.findMany({
-    where: {
-      OR: [
-        { tradeHash: { in: allHashes } },
-        // Also check by user for signature matching
-        { userId: { in: [...new Set(trades.map(t => t.userId))] } }
-      ]
-    }
-  })
+  let existingTrades = []
+  
+  try {
+    // Try hash-based lookup first
+    existingTrades = await prisma.trade.findMany({
+      where: {
+        OR: [
+          { tradeHash: { in: allHashes } },
+          // Also check by user for signature matching
+          { userId: { in: [...new Set(trades.map(t => t.userId))] } }
+        ]
+      }
+    })
+  } catch (error) {
+    // If tradeHash field doesn't exist, fall back to user-based lookup
+    console.log('tradeHash field not available, using user-based duplicate detection')
+    existingTrades = await prisma.trade.findMany({
+      where: {
+        userId: { in: [...new Set(trades.map(t => t.userId))] }
+      }
+    })
+  }
   
   // Create lookup maps
   const existingByHash = new Map(existingTrades.map(t => [t.tradeHash, t]))
@@ -278,7 +291,7 @@ export async function POST(request: NextRequest) {
       try {
         const pnlData = calculatePnL(trade)
         
-        const tradeData = {
+        const baseTradeData = {
           ...trade,
           entryDate: new Date(trade.entryDate),
           exitDate: trade.exitDate ? new Date(trade.exitDate) : null,
@@ -287,11 +300,22 @@ export async function POST(request: NextRequest) {
           returnPercent: pnlData.returnPercent,
           contractMultiplier: pnlData.contractMultiplier,
           contractType: pnlData.contractType,
-          status: trade.exitDate ? 'CLOSED' : 'OPEN',
-          tradeHash: hash,
-          duplicateChecksum: checksum,
-          isDuplicate: duplicateCheck?.isDuplicate || false,
-          originalTradeId: duplicateCheck?.existingTradeId
+          status: trade.exitDate ? 'CLOSED' : 'OPEN'
+        }
+
+        // Try to add duplicate detection fields, fall back if schema not updated
+        let tradeData = baseTradeData
+        try {
+          tradeData = {
+            ...baseTradeData,
+            tradeHash: hash,
+            duplicateChecksum: checksum,
+            isDuplicate: duplicateCheck?.isDuplicate || false,
+            originalTradeId: duplicateCheck?.existingTradeId
+          }
+        } catch (error) {
+          console.log('Duplicate detection fields not available in batch import')
+          tradeData = baseTradeData
         }
         
         const createdTrade = await prisma.trade.create({

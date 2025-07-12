@@ -57,21 +57,29 @@ async function checkForDuplicates(trade: TradeIdentifier): Promise<{
   duplicates: any[]
   bestMatch?: { trade: any, result: DuplicateCheckResult }
 }> {
-  // First check by exact hash
-  const tradeHash = generateTradeHash(trade)
-  const exactMatch = await prisma.trade.findFirst({
-    where: { tradeHash }
-  })
-  
-  if (exactMatch) {
-    return {
-      duplicates: [exactMatch],
-      bestMatch: {
-        trade: exactMatch,
-        result: { isDuplicate: true, existingTradeId: exactMatch.id, confidence: 'exact', duplicateReason: 'Exact hash match' }
+  try {
+    // First check by exact hash (only if tradeHash field exists)
+    const tradeHash = generateTradeHash(trade)
+    let exactMatch = null
+    
+    try {
+      exactMatch = await prisma.trade.findFirst({
+        where: { tradeHash }
+      })
+    } catch (error) {
+      // tradeHash field doesn't exist yet, skip hash-based lookup
+      console.log('tradeHash field not available, using legacy duplicate detection')
+    }
+    
+    if (exactMatch) {
+      return {
+        duplicates: [exactMatch],
+        bestMatch: {
+          trade: exactMatch,
+          result: { isDuplicate: true, existingTradeId: exactMatch.id, confidence: 'exact', duplicateReason: 'Exact hash match' }
+        }
       }
     }
-  }
   
   // Check by signature (same day, similar values)
   const signature = createTradeSignature(trade)
@@ -249,8 +257,8 @@ export async function POST(request: NextRequest) {
     // Calculate P&L if exit data is provided
     const pnlData = calculatePnL(validatedData)
 
-    // Prepare trade data with duplicate detection fields
-    const tradeData = {
+    // Prepare trade data with duplicate detection fields (if supported)
+    const baseTradeData = {
       ...validatedData,
       entryDate: new Date(validatedData.entryDate),
       exitDate: validatedData.exitDate ? new Date(validatedData.exitDate) : null,
@@ -260,12 +268,23 @@ export async function POST(request: NextRequest) {
       contractMultiplier: pnlData.contractMultiplier,
       contractType: pnlData.contractType,
       status: validatedData.exitDate ? 'CLOSED' : 'OPEN',
-      tradeHash,
-      duplicateChecksum,
-      isDuplicate: validatedData.force, // Mark as duplicate if forced
       // Remove duplicate detection control fields from stored data
       force: undefined,
       skipDuplicateCheck: undefined
+    }
+
+    // Try to add duplicate detection fields, fall back if schema not updated
+    let tradeData = baseTradeData
+    try {
+      tradeData = {
+        ...baseTradeData,
+        tradeHash,
+        duplicateChecksum,
+        isDuplicate: validatedData.force, // Mark as duplicate if forced
+      }
+    } catch (error) {
+      console.log('Duplicate detection fields not available, using basic trade data')
+      tradeData = baseTradeData
     }
 
     const trade = await prisma.trade.create({

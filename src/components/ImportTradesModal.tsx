@@ -687,6 +687,12 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         })
       })
 
+      if (!duplicateCheckResponse.ok) {
+        console.log('Batch endpoint not available, falling back to individual imports without duplicate detection')
+        await fallbackImport(tradesData)
+        return
+      }
+
       const duplicateResult = await duplicateCheckResponse.json()
 
       if (duplicateResult.duplicates > 0) {
@@ -804,6 +810,58 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
 
     } catch (error) {
       console.error('Batch import error:', error)
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Import failed: ${errorMessage}`)
+      setStep('preview')
+    }
+  }
+
+  const fallbackImport = async (tradesData: any[]) => {
+    setStep('importing')
+    setImportProgress(0)
+
+    try {
+      for (let i = 0; i < tradesData.length; i++) {
+        const trade = tradesData[i]
+        
+        console.log(`Importing trade ${i + 1}:`, trade)
+        
+        const response = await fetch('/api/trades', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(trade)
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error(`Failed to import trade ${i + 1} (${trade.symbol}):`, errorText)
+          
+          let errorMessage = `Failed to import ${trade.symbol}`
+          try {
+            const errorData = JSON.parse(errorText)
+            errorMessage = errorData.error || errorData.message || errorMessage
+          } catch {
+            errorMessage = errorText.substring(0, 100) || errorMessage
+          }
+          
+          throw new Error(`Trade ${i + 1} (${trade.symbol}): ${errorMessage}`)
+        }
+        
+        const result = await response.json()
+        console.log(`Successfully imported trade ${i + 1}:`, result)
+
+        setImportProgress(((i + 1) / tradesData.length) * 100)
+        
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+
+      alert(`✅ Import Completed!\n\nImported: ${tradesData.length} trades\n\nNote: Duplicate detection not available - please check for duplicates manually.`)
+      onImportComplete()
+      handleClose()
+
+    } catch (error) {
+      console.error('Fallback import error:', error)
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       alert(`Import failed: ${errorMessage}`)
