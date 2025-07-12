@@ -2,14 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getContractMultiplier, getContractType } from '@/lib/contractSpecs'
-import { 
-  generateTradeHash, 
-  generateContentChecksum, 
-  detectDuplicateLevel, 
-  createTradeSignature,
-  type TradeIdentifier,
-  type DuplicateCheckResult
-} from '@/lib/duplicateDetection'
 
 const TradeSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -33,10 +25,6 @@ const TradeSchema = z.object({
   notes: z.string().optional(),
   dataSource: z.string().default('manual'),
   
-  // Duplicate detection options
-  force: z.boolean().default(false), // Force import even if duplicate detected
-  skipDuplicateCheck: z.boolean().default(false), // Skip duplicate checking entirely
-  
   // Enhanced CSV and execution data
   rawCsvData: z.string().optional(),
   fillIds: z.string().optional(),
@@ -51,16 +39,6 @@ const TradeSchema = z.object({
   commissionPerUnit: z.number().optional(),
   executionDuration: z.number().optional(),
 })
-
-// TEMPORARILY DISABLED: Check for existing duplicates
-async function checkForDuplicates(trade: TradeIdentifier): Promise<{
-  duplicates: any[]
-  bestMatch?: { trade: any, result: DuplicateCheckResult }
-}> {
-  // TEMPORARY: Return no duplicates during schema migration
-  console.log('Duplicate detection completely disabled during schema migration')
-  return { duplicates: [] }
-}
 
 // Calculate P&L for a trade
 function calculatePnL(trade: any) {
@@ -141,45 +119,21 @@ export async function POST(request: NextRequest) {
     
     const validatedData = TradeSchema.parse(body)
 
-    // Generate trade identifiers for duplicate checking
-    const tradeIdentifier: TradeIdentifier = {
-      userId: validatedData.userId,
-      symbol: validatedData.symbol,
-      side: validatedData.side,
-      entryDate: validatedData.entryDate,
-      entryPrice: validatedData.entryPrice,
-      quantity: validatedData.quantity,
-      fillIds: validatedData.fillIds
-    }
-
-    // TEMPORARY: Skip ALL duplicate checking until schema migration completes
-    console.log('Duplicate checking skipped - schema migration in progress')
-
-    // Skip hash generation during migration period
-    let tradeHash = ''
-    let duplicateChecksum = ''
-
     // Calculate P&L if exit data is provided
     const pnlData = calculatePnL(validatedData)
 
-    // TEMPORARY: Use only basic trade data during schema migration
-    const tradeData = {
-      ...validatedData,
-      entryDate: new Date(validatedData.entryDate),
-      exitDate: validatedData.exitDate ? new Date(validatedData.exitDate) : null,
-      grossPnL: pnlData.grossPnL,
-      netPnL: pnlData.netPnL,
-      returnPercent: pnlData.returnPercent,
-      contractMultiplier: pnlData.contractMultiplier,
-      contractType: pnlData.contractType,
-      status: validatedData.exitDate ? 'CLOSED' : 'OPEN',
-      // Remove duplicate detection control fields from stored data
-      force: undefined,
-      skipDuplicateCheck: undefined
-    }
-
     const trade = await prisma.trade.create({
-      data: tradeData,
+      data: {
+        ...validatedData,
+        entryDate: new Date(validatedData.entryDate),
+        exitDate: validatedData.exitDate ? new Date(validatedData.exitDate) : null,
+        grossPnL: pnlData.grossPnL,
+        netPnL: pnlData.netPnL,
+        returnPercent: pnlData.returnPercent,
+        contractMultiplier: pnlData.contractMultiplier,
+        contractType: pnlData.contractType,
+        status: validatedData.exitDate ? 'CLOSED' : 'OPEN'
+      },
       include: {
         tags: {
           include: {
