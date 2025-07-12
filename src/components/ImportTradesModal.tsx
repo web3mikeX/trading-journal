@@ -65,7 +65,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
   const themeClasses = getThemeClasses(theme)
   const { data: session } = useSession()
   
-  const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload')
+  const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'duplicates' | 'importing'>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [parsedTrades, setParsedTrades] = useState<ParsedTrade[]>([])
   const [importProgress, setImportProgress] = useState(0)
@@ -78,6 +78,8 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
     price: '',
     quantity: ''
   })
+  const [duplicateInfo, setDuplicateInfo] = useState<any>(null)
+  const [selectedTrades, setSelectedTrades] = useState<Set<number>>(new Set())
 
   // Broker templates for different CSV formats
   const brokerTemplates = {
@@ -620,109 +622,191 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
       return
     }
 
-    setStep('importing')
-    setImportProgress(0)
-
-    const validTrades = parsedTrades.filter(trade => trade.isValid)
-    
-    console.log('Starting import of', validTrades.length, 'valid trades')
-    
     try {
-      for (let i = 0; i < validTrades.length; i++) {
-        const trade = validTrades[i]
+      const validTrades = parsedTrades.filter(trade => trade.isValid)
+      
+      // Convert trades to API format
+      const tradesData = validTrades.map(trade => ({
+        userId: session?.user?.id || '',
+        symbol: trade.symbol,
+        side: trade.side,
+        entryDate: new Date(trade.entryDate).toISOString(),
+        entryPrice: trade.entryPrice,
+        quantity: trade.quantity,
+        market: trade.market || 'FUTURES',
+        notes: trade.notes || `Imported from CSV - ${trade.symbol} ${trade.side}`,
+        dataSource: trade.dataSource || 'csv',
         
-        // Convert to API format with enhanced round-trip support
-        const tradeData = {
-          userId: session?.user?.id || '',
-          symbol: trade.symbol,
-          side: trade.side,
-          entryDate: new Date(trade.entryDate).toISOString(),
-          entryPrice: trade.entryPrice,
-          quantity: trade.quantity,
-          market: trade.market || 'FUTURES',
-          notes: trade.notes || `Imported from CSV - ${trade.symbol} ${trade.side}`,
-          dataSource: trade.dataSource || 'csv',
-          
-          // Round-trip trade data (for completed trades like Tradovate)
-          ...(trade.exitDate && { 
-            exitDate: new Date(trade.exitDate).toISOString(),
-            status: 'CLOSED' // Mark as closed if we have exit data
-          }),
-          ...(trade.exitPrice && { exitPrice: trade.exitPrice }),
-          
-          // Enhanced P&L and performance data
-          ...(trade.netPnL !== undefined && { netPnL: trade.netPnL }),
-          ...(trade.grossPnL !== undefined && { grossPnL: trade.grossPnL }),
-          ...(trade.returnPercent !== undefined && { returnPercent: trade.returnPercent }),
-          
-          // Set trade status based on available data
-          status: trade.status || (trade.exitDate ? 'CLOSED' : 'OPEN'),
-          
-          // Additional fields for better tracking
-          entryFees: trade.entryFees || 0,
-          exitFees: trade.exitFees || 0,
-          commission: trade.commission || 0, // Use calculated commission values
-          swap: trade.swap || 0,
-          
-          // Enhanced CSV and execution data
-          ...(trade.rawCsvData && { rawCsvData: trade.rawCsvData }),
-          ...(trade.fillIds && { fillIds: trade.fillIds }),
-          ...(trade.executionMetadata && { executionMetadata: trade.executionMetadata }),
-          ...(trade.timingData && { timingData: trade.timingData }),
-          ...(trade.slippage !== undefined && { slippage: trade.slippage }),
-          ...(trade.orderDetails && { orderDetails: trade.orderDetails }),
-          
-          // Advanced performance metrics
-          ...(trade.maxAdverseExcursion !== undefined && { maxAdverseExcursion: trade.maxAdverseExcursion }),
-          ...(trade.maxFavorableExcursion !== undefined && { maxFavorableExcursion: trade.maxFavorableExcursion }),
-          ...(trade.commissionPerUnit !== undefined && { commissionPerUnit: trade.commissionPerUnit }),
-          ...(trade.executionDuration !== undefined && { executionDuration: trade.executionDuration })
-        }
-
-        console.log(`Importing trade ${i + 1}:`, tradeData)
+        // Round-trip trade data (for completed trades like Tradovate)
+        ...(trade.exitDate && { 
+          exitDate: new Date(trade.exitDate).toISOString(),
+          status: 'CLOSED' // Mark as closed if we have exit data
+        }),
+        ...(trade.exitPrice && { exitPrice: trade.exitPrice }),
         
-        const response = await fetch('/api/trades', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(tradeData)
-        })
+        // Enhanced P&L and performance data
+        ...(trade.netPnL !== undefined && { netPnL: trade.netPnL }),
+        ...(trade.grossPnL !== undefined && { grossPnL: trade.grossPnL }),
+        ...(trade.returnPercent !== undefined && { returnPercent: trade.returnPercent }),
+        
+        // Set trade status based on available data
+        status: trade.status || (trade.exitDate ? 'CLOSED' : 'OPEN'),
+        
+        // Additional fields for better tracking
+        entryFees: trade.entryFees || 0,
+        exitFees: trade.exitFees || 0,
+        commission: trade.commission || 0,
+        swap: trade.swap || 0,
+        
+        // Enhanced CSV and execution data
+        ...(trade.rawCsvData && { rawCsvData: trade.rawCsvData }),
+        ...(trade.fillIds && { fillIds: trade.fillIds }),
+        ...(trade.executionMetadata && { executionMetadata: trade.executionMetadata }),
+        ...(trade.timingData && { timingData: trade.timingData }),
+        ...(trade.slippage !== undefined && { slippage: trade.slippage }),
+        ...(trade.orderDetails && { orderDetails: trade.orderDetails }),
+        
+        // Advanced performance metrics
+        ...(trade.maxAdverseExcursion !== undefined && { maxAdverseExcursion: trade.maxAdverseExcursion }),
+        ...(trade.maxFavorableExcursion !== undefined && { maxFavorableExcursion: trade.maxFavorableExcursion }),
+        ...(trade.commissionPerUnit !== undefined && { commissionPerUnit: trade.commissionPerUnit }),
+        ...(trade.executionDuration !== undefined && { executionDuration: trade.executionDuration })
+      }))
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error(`Failed to import trade ${i + 1} (${trade.symbol}):`, errorText)
-          
-          // Try to parse error response for better user feedback
-          let errorMessage = `Failed to import ${trade.symbol}`
-          try {
-            const errorData = JSON.parse(errorText)
-            errorMessage = errorData.error || errorData.message || errorMessage
-          } catch {
-            // Use raw text if not JSON
-            errorMessage = errorText.substring(0, 100) || errorMessage
+      console.log('Checking for duplicates in', tradesData.length, 'trades...')
+
+      // First, check for duplicates
+      const duplicateCheckResponse = await fetch('/api/trades/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trades: tradesData,
+          options: {
+            validateOnly: true
           }
-          
-          throw new Error(`Trade ${i + 1} (${trade.symbol}): ${errorMessage}`)
+        })
+      })
+
+      const duplicateResult = await duplicateCheckResponse.json()
+
+      if (duplicateResult.duplicates > 0) {
+        // Show duplicate warning with user choice
+        const message = `⚠️ Duplicate Detection Alert!\n\nFound ${duplicateResult.duplicates} duplicate trades out of ${duplicateResult.totalTrades} total.\n\nOptions:\n• Skip Duplicates: Import only ${duplicateResult.newTrades} new trades\n• Force Import: Import all trades (duplicates will be marked)\n• Cancel: Review your data\n\nWhat would you like to do?`
+        
+        const userChoice = confirm(message + '\n\nClick OK to Skip Duplicates, Cancel to review data.')
+        
+        if (!userChoice) {
+          // User cancelled
+          alert('Import cancelled. Please review your data and remove duplicates manually if needed.')
+          return
         }
         
-        const result = await response.json()
-        console.log(`Successfully imported trade ${i + 1}:`, result)
-
-        setImportProgress(((i + 1) / validTrades.length) * 100)
-        
-        // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 100))
+        // User chose to skip duplicates, proceed with import
+        await performImport('skip')
+      } else {
+        // No duplicates found, proceed with normal import
+        console.log('No duplicates found, proceeding with import...')
+        await performImport('skip')
       }
 
-      onImportComplete()
-      handleClose()
     } catch (error) {
       console.error('Import error:', error)
       
-      // Show detailed error message to user
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      const detailedMessage = `Import failed: ${errorMessage}\n\nPlease check your data and try again. If the problem persists, verify that:\n- All required fields are present\n- Dates are valid\n- Prices are positive numbers\n- No duplicate trades exist`
+      const detailedMessage = `Import failed: ${errorMessage}\n\nPlease check your data and try again.`
       
       alert(detailedMessage)
+      setStep('preview')
+    }
+  }
+
+  const performImport = async (duplicateHandling: 'skip' | 'force' = 'skip') => {
+    setStep('importing')
+    setImportProgress(0)
+
+    try {
+      const validTrades = parsedTrades.filter(trade => trade.isValid)
+      
+      const tradesData = validTrades.map(trade => ({
+        userId: session?.user?.id || '',
+        symbol: trade.symbol,
+        side: trade.side,
+        entryDate: new Date(trade.entryDate).toISOString(),
+        entryPrice: trade.entryPrice,
+        quantity: trade.quantity,
+        market: trade.market || 'FUTURES',
+        notes: trade.notes || `Imported from CSV - ${trade.symbol} ${trade.side}`,
+        dataSource: trade.dataSource || 'csv',
+        
+        ...(trade.exitDate && { 
+          exitDate: new Date(trade.exitDate).toISOString(),
+          status: 'CLOSED'
+        }),
+        ...(trade.exitPrice && { exitPrice: trade.exitPrice }),
+        ...(trade.netPnL !== undefined && { netPnL: trade.netPnL }),
+        ...(trade.grossPnL !== undefined && { grossPnL: trade.grossPnL }),
+        ...(trade.returnPercent !== undefined && { returnPercent: trade.returnPercent }),
+        
+        status: trade.status || (trade.exitDate ? 'CLOSED' : 'OPEN'),
+        entryFees: trade.entryFees || 0,
+        exitFees: trade.exitFees || 0,
+        commission: trade.commission || 0,
+        swap: trade.swap || 0,
+        
+        ...(trade.rawCsvData && { rawCsvData: trade.rawCsvData }),
+        ...(trade.fillIds && { fillIds: trade.fillIds }),
+        ...(trade.executionMetadata && { executionMetadata: trade.executionMetadata }),
+        ...(trade.timingData && { timingData: trade.timingData }),
+        ...(trade.slippage !== undefined && { slippage: trade.slippage }),
+        ...(trade.orderDetails && { orderDetails: trade.orderDetails }),
+        
+        ...(trade.maxAdverseExcursion !== undefined && { maxAdverseExcursion: trade.maxAdverseExcursion }),
+        ...(trade.maxFavorableExcursion !== undefined && { maxFavorableExcursion: trade.maxFavorableExcursion }),
+        ...(trade.commissionPerUnit !== undefined && { commissionPerUnit: trade.commissionPerUnit }),
+        ...(trade.executionDuration !== undefined && { executionDuration: trade.executionDuration })
+      }))
+
+      console.log(`Importing ${tradesData.length} trades with duplicate handling: ${duplicateHandling}`)
+
+      const response = await fetch('/api/trades/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          trades: tradesData,
+          options: {
+            duplicateHandling,
+            allowPartialImport: true,
+            validateOnly: false
+          }
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Import failed')
+      }
+
+      // Show import results
+      let message = `✅ Import Completed!\n\n`
+      message += `📊 Results:\n`
+      message += `• Imported: ${result.imported} trades\n`
+      if (result.skipped > 0) {
+        message += `• Skipped duplicates: ${result.skipped}\n`
+      }
+      if (result.errors > 0) {
+        message += `• Errors: ${result.errors}\n`
+      }
+
+      alert(message)
+      onImportComplete()
+      handleClose()
+
+    } catch (error) {
+      console.error('Batch import error:', error)
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Import failed: ${errorMessage}`)
       setStep('preview')
     }
   }
