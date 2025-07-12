@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
+import { useToast } from "@/components/ui/toast"
 import * as XLSX from 'xlsx'
 
 interface ImportTradesModalProps {
@@ -64,6 +65,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const { data: session } = useSession()
+  const { addToast } = useToast()
   
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'duplicates' | 'importing'>('upload')
   const [file, setFile] = useState<File | null>(null)
@@ -700,6 +702,16 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
             action: 'pending'
           }])
           
+          // Show toast notification for first duplicate
+          if (duplicateResults.length === 0) {
+            addToast({
+              type: 'warning',
+              title: 'Duplicate Trades Detected',
+              message: `Found ${trade.symbol} duplicate. Review will be required.`,
+              duration: 4000
+            })
+          }
+          
           setImportProgress(((i + 1) / validTrades.length) * 100)
           continue
         }
@@ -732,19 +744,35 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
 
       // Check if we have duplicates to handle
       if (duplicateResults.length > 0) {
+        addToast({
+          type: 'info',
+          title: 'Duplicate Review Required',
+          message: `${duplicateResults.length} duplicate trades need your attention.`,
+          duration: 5000
+        })
         setStep('duplicates')
       } else {
+        const importedCount = validTrades.length
+        addToast({
+          type: 'success',
+          title: 'Import Complete!',
+          message: `Successfully imported ${importedCount} trade${importedCount !== 1 ? 's' : ''}.`,
+          duration: 4000
+        })
         onImportComplete()
         handleClose()
       }
     } catch (error) {
       console.error('Import error:', error)
       
-      // Show detailed error message to user
+      // Show error notification
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      const detailedMessage = `Import failed: ${errorMessage}\n\nPlease check your data and try again. If the problem persists, verify that:\n- All required fields are present\n- Dates are valid\n- Prices are positive numbers`
-      
-      alert(detailedMessage)
+      addToast({
+        type: 'error',
+        title: 'Import Failed',
+        message: `${errorMessage}. Please check your data and try again.`,
+        duration: 8000
+      })
       setStep('preview')
     }
   }
@@ -1220,6 +1248,12 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                     <button
                       onClick={() => {
                         setDuplicateResults(prev => prev.map(item => ({ ...item, action: 'skip' })))
+                        addToast({
+                          type: 'info',
+                          title: 'All Duplicates Skipped',
+                          message: `${duplicateResults.length} duplicate trades will be skipped.`,
+                          duration: 3000
+                        })
                       }}
                       className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                     >
@@ -1228,6 +1262,12 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                     <button
                       onClick={() => {
                         setDuplicateResults(prev => prev.map(item => ({ ...item, action: 'import' })))
+                        addToast({
+                          type: 'warning',
+                          title: 'All Duplicates Selected for Import',
+                          message: `${duplicateResults.length} duplicate trades will be imported anyway.`,
+                          duration: 4000
+                        })
                       }}
                       className="px-4 py-2 bg-blue-200 text-blue-700 rounded-lg hover:bg-blue-300 transition-colors"
                     >
@@ -1283,11 +1323,26 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                             await new Promise(resolve => setTimeout(resolve, 100))
                           }
                           
+                          const importedCount = tradesToImport.length
+                          const skippedCount = duplicateResults.filter(r => r.action === 'skip').length
+                          
+                          addToast({
+                            type: 'success',
+                            title: 'Duplicate Handling Complete!',
+                            message: `Imported ${importedCount} trades, skipped ${skippedCount} duplicates.`,
+                            duration: 5000
+                          })
+                          
                           onImportComplete()
                           handleClose()
                         } catch (error) {
                           console.error('Duplicate import error:', error)
-                          alert('Some trades failed to import. Please try again.')
+                          addToast({
+                            type: 'error',
+                            title: 'Import Error',
+                            message: 'Some trades failed to import. Please try again.',
+                            duration: 6000
+                          })
                           setStep('duplicates')
                         }
                       }}

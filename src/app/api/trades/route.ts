@@ -39,9 +39,6 @@ const TradeSchema = z.object({
   maxFavorableExcursion: z.number().optional(),
   commissionPerUnit: z.number().optional(),
   executionDuration: z.number().optional(),
-  
-  // Duplicate detection
-  forceCreate: z.boolean().optional().default(false),
 })
 
 // Calculate P&L for a trade
@@ -121,10 +118,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     
-    const validatedData = TradeSchema.parse(body)
+    // Extract forceCreate before validation
+    const { forceCreate = false, ...dataToValidate } = body
+    
+    const validatedData = TradeSchema.parse(dataToValidate)
 
     // Check for duplicates unless forceCreate is true
-    if (!validatedData.forceCreate) {
+    if (!forceCreate) {
       const duplicateCheck = await detectDuplicateTrade({
         userId: validatedData.userId,
         symbol: validatedData.symbol,
@@ -154,8 +154,8 @@ export async function POST(request: NextRequest) {
     // Calculate P&L if exit data is provided
     const pnlData = calculatePnL(validatedData)
 
-    // Generate trade hash
-    const tradeHash = generateTradeHash({
+    // Generate trade hash (add timestamp for forced duplicates to make unique)
+    const baseTradeData = {
       userId: validatedData.userId,
       symbol: validatedData.symbol,
       side: validatedData.side,
@@ -164,13 +164,47 @@ export async function POST(request: NextRequest) {
       quantity: validatedData.quantity,
       exitDate: validatedData.exitDate,
       exitPrice: validatedData.exitPrice
-    })
+    }
+    
+    let tradeHash = generateTradeHash(baseTradeData)
+    
+    // If forcing creation of a duplicate, append timestamp to make hash unique
+    if (forceCreate) {
+      tradeHash = tradeHash + '_' + Date.now()
+    }
 
     const trade = await prisma.trade.create({
       data: {
-        ...validatedData,
+        userId: validatedData.userId,
+        symbol: validatedData.symbol,
+        side: validatedData.side,
         entryDate: new Date(validatedData.entryDate),
+        entryPrice: validatedData.entryPrice,
+        quantity: validatedData.quantity,
+        market: validatedData.market,
+        strategy: validatedData.strategy,
+        setup: validatedData.setup,
+        entryFees: validatedData.entryFees,
         exitDate: validatedData.exitDate ? new Date(validatedData.exitDate) : null,
+        exitPrice: validatedData.exitPrice,
+        exitFees: validatedData.exitFees,
+        stopLoss: validatedData.stopLoss,
+        takeProfit: validatedData.takeProfit,
+        riskAmount: validatedData.riskAmount,
+        commission: validatedData.commission,
+        swap: validatedData.swap,
+        notes: validatedData.notes,
+        dataSource: validatedData.dataSource,
+        rawCsvData: validatedData.rawCsvData,
+        fillIds: validatedData.fillIds,
+        executionMetadata: validatedData.executionMetadata,
+        timingData: validatedData.timingData,
+        slippage: validatedData.slippage,
+        orderDetails: validatedData.orderDetails,
+        maxAdverseExcursion: validatedData.maxAdverseExcursion,
+        maxFavorableExcursion: validatedData.maxFavorableExcursion,
+        commissionPerUnit: validatedData.commissionPerUnit,
+        executionDuration: validatedData.executionDuration,
         grossPnL: pnlData.grossPnL,
         netPnL: pnlData.netPnL,
         returnPercent: pnlData.returnPercent,
