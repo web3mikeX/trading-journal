@@ -9,8 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Account {
@@ -119,6 +119,11 @@ model Trade {
   screenshots    String?     // JSON array of screenshot URLs
   dataSource     String      @default("manual") // "manual", "csv", "api", "email"
   
+  // Duplicate detection
+  tradeHash      String?     // SHA-256 hash for exact duplicate detection
+  isDuplicate    Boolean     @default(false)
+  originalTradeId String?    // Reference to original trade if this is a duplicate
+  
   // Enhanced CSV and execution data
   rawCsvData     String?     // JSON string of original CSV row data
   fillIds        String?     // JSON array of broker fill IDs (buyFillId, sellFillId)
@@ -141,6 +146,8 @@ model Trade {
   @@index([userId, entryDate])
   @@index([userId, symbol])
   @@index([userId, status])
+  @@index([userId, tradeHash])
+  @@unique([userId, tradeHash])
 }
 
 model JournalEntry {

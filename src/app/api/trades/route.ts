@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getContractMultiplier, getContractType } from '@/lib/contractSpecs'
+import { generateTradeHash, detectDuplicateTrade } from '@/lib/duplicateDetection'
 
 const TradeSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -38,6 +39,9 @@ const TradeSchema = z.object({
   maxFavorableExcursion: z.number().optional(),
   commissionPerUnit: z.number().optional(),
   executionDuration: z.number().optional(),
+  
+  // Duplicate detection
+  forceCreate: z.boolean().optional().default(false),
 })
 
 // Calculate P&L for a trade
@@ -119,8 +123,48 @@ export async function POST(request: NextRequest) {
     
     const validatedData = TradeSchema.parse(body)
 
+    // Check for duplicates unless forceCreate is true
+    if (!validatedData.forceCreate) {
+      const duplicateCheck = await detectDuplicateTrade({
+        userId: validatedData.userId,
+        symbol: validatedData.symbol,
+        side: validatedData.side,
+        entryDate: validatedData.entryDate,
+        entryPrice: validatedData.entryPrice,
+        quantity: validatedData.quantity,
+        exitDate: validatedData.exitDate,
+        exitPrice: validatedData.exitPrice
+      })
+
+      // Return duplicate information for EXACT and HIGH confidence duplicates
+      if (duplicateCheck.level === 'EXACT' || duplicateCheck.level === 'HIGH') {
+        return NextResponse.json({
+          isDuplicate: true,
+          duplicateInfo: duplicateCheck,
+          message: `Duplicate trade detected: ${duplicateCheck.reason}`
+        }, { status: 409 }) // 409 Conflict
+      }
+
+      // For MEDIUM duplicates, still create but include warning
+      if (duplicateCheck.level === 'MEDIUM') {
+        // Continue with creation but include warning in response
+      }
+    }
+
     // Calculate P&L if exit data is provided
     const pnlData = calculatePnL(validatedData)
+
+    // Generate trade hash
+    const tradeHash = generateTradeHash({
+      userId: validatedData.userId,
+      symbol: validatedData.symbol,
+      side: validatedData.side,
+      entryDate: validatedData.entryDate,
+      entryPrice: validatedData.entryPrice,
+      quantity: validatedData.quantity,
+      exitDate: validatedData.exitDate,
+      exitPrice: validatedData.exitPrice
+    })
 
     const trade = await prisma.trade.create({
       data: {
@@ -132,7 +176,9 @@ export async function POST(request: NextRequest) {
         returnPercent: pnlData.returnPercent,
         contractMultiplier: pnlData.contractMultiplier,
         contractType: pnlData.contractType,
-        status: validatedData.exitDate ? 'CLOSED' : 'OPEN'
+        status: validatedData.exitDate ? 'CLOSED' : 'OPEN',
+        tradeHash,
+        isDuplicate: false
       },
       include: {
         tags: {

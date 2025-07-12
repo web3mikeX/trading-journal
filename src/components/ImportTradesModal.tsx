@@ -65,12 +65,13 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
   const themeClasses = getThemeClasses(theme)
   const { data: session } = useSession()
   
-  const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload')
+  const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'duplicates' | 'importing'>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [parsedTrades, setParsedTrades] = useState<ParsedTrade[]>([])
   const [importProgress, setImportProgress] = useState(0)
   const [selectedTemplate, setSelectedTemplate] = useState<string>('auto')
   const [rawData, setRawData] = useState<any[][]>([])
+  const [duplicateResults, setDuplicateResults] = useState<{trade: ParsedTrade; duplicate: any; action: 'skip' | 'import' | 'pending'}[]>([])
   const [columnMapping, setColumnMapping] = useState<{[key: string]: string}>({
     symbol: '',
     side: '',
@@ -687,6 +688,22 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           body: JSON.stringify(tradeData)
         })
 
+        if (response.status === 409) {
+          // Handle duplicate detection
+          const duplicateData = await response.json()
+          console.log(`Duplicate detected for trade ${i + 1}:`, duplicateData)
+          
+          // Store duplicate info and skip this trade for now
+          setDuplicateResults(prev => [...prev, {
+            trade,
+            duplicate: duplicateData.duplicateInfo,
+            action: 'pending'
+          }])
+          
+          setImportProgress(((i + 1) / validTrades.length) * 100)
+          continue
+        }
+
         if (!response.ok) {
           const errorText = await response.text()
           console.error(`Failed to import trade ${i + 1} (${trade.symbol}):`, errorText)
@@ -713,8 +730,13 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         await new Promise(resolve => setTimeout(resolve, 100))
       }
 
-      onImportComplete()
-      handleClose()
+      // Check if we have duplicates to handle
+      if (duplicateResults.length > 0) {
+        setStep('duplicates')
+      } else {
+        onImportComplete()
+        handleClose()
+      }
     } catch (error) {
       console.error('Import error:', error)
       
@@ -733,6 +755,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
     setParsedTrades([])
     setImportProgress(0)
     setRawData([])
+    setDuplicateResults([])
     setColumnMapping({
       symbol: '',
       side: '',
@@ -783,6 +806,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
               <h2 className={`text-xl font-semibold ${themeClasses.text}`}>
                 Import Trades
                 {step === 'preview' && ` (${parsedTrades.length} trades found)`}
+                {step === 'duplicates' && ` (${duplicateResults.length} duplicates found)`}
                 {step === 'importing' && ` (${Math.round(importProgress)}% complete)`}
               </h2>
               <button
@@ -1107,6 +1131,171 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                         })}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {step === 'duplicates' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className={`text-lg font-medium ${themeClasses.text} mb-2`}>Duplicate Trades Detected</h3>
+                  <p className={`text-sm ${themeClasses.textSecondary} mb-6`}>
+                    We found {duplicateResults.length} potential duplicate trades. Please choose what to do with each:
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {duplicateResults.map((result, index) => (
+                    <div key={index} className={`border border-gray-200 rounded-lg p-4 ${themeClasses.surface}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className={`font-medium ${themeClasses.text}`}>
+                            {result.trade.symbol} - {result.trade.side} - {result.trade.quantity} shares
+                          </h4>
+                          <p className={`text-sm ${themeClasses.textSecondary}`}>
+                            Entry: ${result.trade.entryPrice} on {new Date(result.trade.entryDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${
+                          result.duplicate.level === 'EXACT' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {result.duplicate.level} MATCH
+                        </div>
+                      </div>
+                      
+                      <div className={`text-sm ${themeClasses.textSecondary} mb-3`}>
+                        <strong>Reason:</strong> {result.duplicate.reason}
+                      </div>
+                      
+                      {result.duplicate.existingTrade && (
+                        <div className={`text-xs ${themeClasses.textSecondary} mb-3 bg-gray-50 p-2 rounded`}>
+                          <strong>Existing trade:</strong> {result.duplicate.existingTrade.symbol} - {result.duplicate.existingTrade.side} - 
+                          ${result.duplicate.existingTrade.entryPrice} on {new Date(result.duplicate.existingTrade.entryDate).toLocaleDateString()}
+                        </div>
+                      )}
+                      
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            setDuplicateResults(prev => prev.map((item, idx) => 
+                              idx === index ? { ...item, action: 'skip' } : item
+                            ))
+                          }}
+                          className={`px-3 py-1 rounded text-sm ${
+                            result.action === 'skip' 
+                              ? 'bg-gray-600 text-white' 
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          Skip Import
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDuplicateResults(prev => prev.map((item, idx) => 
+                              idx === index ? { ...item, action: 'import' } : item
+                            ))
+                          }}
+                          className={`px-3 py-1 rounded text-sm ${
+                            result.action === 'import' 
+                              ? 'bg-blue-600 text-white' 
+                              : 'bg-blue-200 text-blue-700 hover:bg-blue-300'
+                          }`}
+                        >
+                          Import Anyway
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => setStep('preview')}
+                    className={`px-4 py-2 rounded-lg ${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors`}
+                  >
+                    Back to Preview
+                  </button>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => {
+                        setDuplicateResults(prev => prev.map(item => ({ ...item, action: 'skip' })))
+                      }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Skip All
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDuplicateResults(prev => prev.map(item => ({ ...item, action: 'import' })))
+                      }}
+                      className="px-4 py-2 bg-blue-200 text-blue-700 rounded-lg hover:bg-blue-300 transition-colors"
+                    >
+                      Import All
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setStep('importing')
+                        setImportProgress(0)
+                        
+                        const tradesToImport = duplicateResults.filter(result => result.action === 'import')
+                        
+                        try {
+                          for (let i = 0; i < tradesToImport.length; i++) {
+                            const { trade } = tradesToImport[i]
+                            
+                            const tradeData = {
+                              userId: session?.user?.id || '',
+                              symbol: trade.symbol,
+                              side: trade.side,
+                              entryDate: new Date(trade.entryDate).toISOString(),
+                              entryPrice: trade.entryPrice,
+                              quantity: trade.quantity,
+                              market: trade.market || 'FUTURES',
+                              notes: trade.notes || `Imported from CSV - ${trade.symbol} ${trade.side}`,
+                              dataSource: trade.dataSource || 'csv',
+                              forceCreate: true, // Force creation despite duplicates
+                              ...(trade.exitDate && { 
+                                exitDate: new Date(trade.exitDate).toISOString(),
+                                status: 'CLOSED'
+                              }),
+                              ...(trade.exitPrice && { exitPrice: trade.exitPrice }),
+                              ...(trade.netPnL !== undefined && { netPnL: trade.netPnL }),
+                              ...(trade.grossPnL !== undefined && { grossPnL: trade.grossPnL }),
+                              status: trade.status || (trade.exitDate ? 'CLOSED' : 'OPEN'),
+                              entryFees: trade.entryFees || 0,
+                              exitFees: trade.exitFees || 0,
+                              commission: trade.commission || 0,
+                              swap: trade.swap || 0
+                            }
+                            
+                            const response = await fetch('/api/trades', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify(tradeData)
+                            })
+                            
+                            if (!response.ok) {
+                              throw new Error(`Failed to import ${trade.symbol}`)
+                            }
+                            
+                            setImportProgress(((i + 1) / tradesToImport.length) * 100)
+                            await new Promise(resolve => setTimeout(resolve, 100))
+                          }
+                          
+                          onImportComplete()
+                          handleClose()
+                        } catch (error) {
+                          console.error('Duplicate import error:', error)
+                          alert('Some trades failed to import. Please try again.')
+                          setStep('duplicates')
+                        }
+                      }}
+                      disabled={!duplicateResults.some(result => result.action !== 'pending')}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Proceed with Selected
+                    </button>
                   </div>
                 </div>
               </div>
