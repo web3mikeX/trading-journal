@@ -52,79 +52,14 @@ const TradeSchema = z.object({
   executionDuration: z.number().optional(),
 })
 
-// Check for existing duplicates
+// TEMPORARILY DISABLED: Check for existing duplicates
 async function checkForDuplicates(trade: TradeIdentifier): Promise<{
   duplicates: any[]
   bestMatch?: { trade: any, result: DuplicateCheckResult }
 }> {
-  try {
-    // First check by exact hash (only if tradeHash field exists)
-    const tradeHash = generateTradeHash(trade)
-    let exactMatch = null
-    
-    try {
-      exactMatch = await prisma.trade.findFirst({
-        where: { tradeHash }
-      })
-    } catch (error) {
-      // tradeHash field doesn't exist yet, skip hash-based lookup
-      console.log('tradeHash field not available, using legacy duplicate detection')
-    }
-    
-    if (exactMatch) {
-      return {
-        duplicates: [exactMatch],
-        bestMatch: {
-          trade: exactMatch,
-          result: { isDuplicate: true, existingTradeId: exactMatch.id, confidence: 'exact', duplicateReason: 'Exact hash match' }
-        }
-      }
-    }
-  
-  // Check by signature (same day, similar values)
-  const signature = createTradeSignature(trade)
-  const potentialDuplicates = await prisma.trade.findMany({
-    where: {
-      userId: signature.userId,
-      symbol: signature.symbol,
-      side: signature.side,
-      entryDate: signature.entryDateRange,
-      entryPrice: signature.entryPriceRange,
-      quantity: signature.quantityRange
-    },
-    orderBy: { createdAt: 'desc' }
-  })
-  
-  if (potentialDuplicates.length === 0) {
-    return { duplicates: [] }
-  }
-  
-  // Analyze each potential duplicate
-  let bestMatch: { trade: any, result: DuplicateCheckResult } | undefined
-  let highestConfidence = 'low'
-  
-  for (const existingTrade of potentialDuplicates) {
-    const result = detectDuplicateLevel(trade, {
-      userId: existingTrade.userId,
-      symbol: existingTrade.symbol,
-      side: existingTrade.side,
-      entryDate: existingTrade.entryDate,
-      entryPrice: existingTrade.entryPrice,
-      quantity: existingTrade.quantity,
-      fillIds: existingTrade.fillIds || undefined
-    })
-    
-    if (result.isDuplicate && (!bestMatch || result.confidence === 'exact' || 
-        (result.confidence === 'high' && highestConfidence !== 'exact'))) {
-      bestMatch = { trade: existingTrade, result: { ...result, existingTradeId: existingTrade.id } }
-      highestConfidence = result.confidence
-    }
-  }
-  
-  return {
-    duplicates: potentialDuplicates,
-    bestMatch
-  }
+  // TEMPORARY: Return no duplicates during schema migration
+  console.log('Duplicate detection completely disabled during schema migration')
+  return { duplicates: [] }
 }
 
 // Calculate P&L for a trade

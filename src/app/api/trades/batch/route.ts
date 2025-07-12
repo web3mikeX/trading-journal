@@ -102,112 +102,17 @@ function calculatePnL(trade: any) {
   }
 }
 
-// Check for existing duplicates in batch
+// TEMPORARILY DISABLED: Check for existing duplicates in batch
 async function batchCheckForDuplicates(trades: any[]): Promise<TradeWithDuplicateInfo[]> {
-  const results: TradeWithDuplicateInfo[] = []
+  // TEMPORARY: Return no duplicates during schema migration
+  console.log('Batch duplicate detection completely disabled during schema migration')
   
-  // Generate hashes for all trades first
-  const tradeHashes = trades.map(trade => {
-    const identifier: TradeIdentifier = {
-      userId: trade.userId,
-      symbol: trade.symbol,
-      side: trade.side,
-      entryDate: trade.entryDate,
-      entryPrice: trade.entryPrice,
-      quantity: trade.quantity,
-      fillIds: trade.fillIds
-    }
-    return {
-      trade,
-      hash: generateTradeHash(identifier),
-      checksum: generateContentChecksum(trade),
-      identifier
-    }
-  })
-  
-  // Check for duplicates against existing trades in database
-  const allHashes = tradeHashes.map(t => t.hash)
-  let existingTrades = []
-  
-  try {
-    // Try hash-based lookup first
-    existingTrades = await prisma.trade.findMany({
-      where: {
-        OR: [
-          { tradeHash: { in: allHashes } },
-          // Also check by user for signature matching
-          { userId: { in: [...new Set(trades.map(t => t.userId))] } }
-        ]
-      }
-    })
-  } catch (error) {
-    // If tradeHash field doesn't exist, fall back to user-based lookup
-    console.log('tradeHash field not available, using user-based duplicate detection')
-    existingTrades = await prisma.trade.findMany({
-      where: {
-        userId: { in: [...new Set(trades.map(t => t.userId))] }
-      }
-    })
-  }
-  
-  // Create lookup maps
-  const existingByHash = new Map(existingTrades.map(t => [t.tradeHash, t]))
-  const existingByUser = new Map<string, any[]>()
-  existingTrades.forEach(trade => {
-    if (!existingByUser.has(trade.userId)) {
-      existingByUser.set(trade.userId, [])
-    }
-    existingByUser.get(trade.userId)!.push(trade)
-  })
-  
-  // Check each trade for duplicates
-  for (const { trade, hash, checksum, identifier } of tradeHashes) {
-    let duplicateCheck: any = undefined
-    
-    // First check exact hash match
-    const exactMatch = existingByHash.get(hash)
-    if (exactMatch) {
-      duplicateCheck = {
-        isDuplicate: true,
-        confidence: 'exact' as const,
-        reason: 'Exact hash match',
-        existingTradeId: exactMatch.id,
-        existingTrade: exactMatch
-      }
-    } else {
-      // Check for fuzzy matches within user's trades
-      const userTrades = existingByUser.get(trade.userId) || []
-      for (const existingTrade of userTrades) {
-        const result = detectDuplicateLevel(identifier, {
-          userId: existingTrade.userId,
-          symbol: existingTrade.symbol,
-          side: existingTrade.side,
-          entryDate: existingTrade.entryDate,
-          entryPrice: existingTrade.entryPrice,
-          quantity: existingTrade.quantity,
-          fillIds: existingTrade.fillIds || undefined
-        })
-        
-        if (result.isDuplicate) {
-          duplicateCheck = {
-            isDuplicate: true,
-            confidence: result.confidence,
-            reason: result.duplicateReason,
-            existingTradeId: existingTrade.id,
-            existingTrade: existingTrade
-          }
-          break // Use first match found
-        }
-      }
-    }
-    
-    results.push({
-      trade,
-      duplicateCheck,
-      hash,
-      checksum
-    })
-  }
+  const results: TradeWithDuplicateInfo[] = trades.map(trade => ({
+    trade,
+    duplicateCheck: undefined,
+    hash: '',
+    checksum: ''
+  }))
   
   return results
 }
@@ -291,7 +196,7 @@ export async function POST(request: NextRequest) {
       try {
         const pnlData = calculatePnL(trade)
         
-        const baseTradeData = {
+        const tradeData = {
           ...trade,
           entryDate: new Date(trade.entryDate),
           exitDate: trade.exitDate ? new Date(trade.exitDate) : null,
@@ -301,21 +206,6 @@ export async function POST(request: NextRequest) {
           contractMultiplier: pnlData.contractMultiplier,
           contractType: pnlData.contractType,
           status: trade.exitDate ? 'CLOSED' : 'OPEN'
-        }
-
-        // Try to add duplicate detection fields, fall back if schema not updated
-        let tradeData = baseTradeData
-        try {
-          tradeData = {
-            ...baseTradeData,
-            tradeHash: hash,
-            duplicateChecksum: checksum,
-            isDuplicate: duplicateCheck?.isDuplicate || false,
-            originalTradeId: duplicateCheck?.existingTradeId
-          }
-        } catch (error) {
-          console.log('Duplicate detection fields not available in batch import')
-          tradeData = baseTradeData
         }
         
         const createdTrade = await prisma.trade.create({
