@@ -673,47 +673,10 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         ...(trade.executionDuration !== undefined && { executionDuration: trade.executionDuration })
       }))
 
-      console.log('Checking for duplicates in', tradesData.length, 'trades...')
+      console.log('Starting import of', tradesData.length, 'trades (duplicate detection temporarily disabled)...')
 
-      // First, check for duplicates
-      const duplicateCheckResponse = await fetch('/api/trades/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          trades: tradesData,
-          options: {
-            validateOnly: true
-          }
-        })
-      })
-
-      if (!duplicateCheckResponse.ok) {
-        console.log('Batch endpoint not available, falling back to individual imports without duplicate detection')
-        await fallbackImport(tradesData)
-        return
-      }
-
-      const duplicateResult = await duplicateCheckResponse.json()
-
-      if (duplicateResult.duplicates > 0) {
-        // Show duplicate warning with user choice
-        const message = `⚠️ Duplicate Detection Alert!\n\nFound ${duplicateResult.duplicates} duplicate trades out of ${duplicateResult.totalTrades} total.\n\nOptions:\n• Skip Duplicates: Import only ${duplicateResult.newTrades} new trades\n• Force Import: Import all trades (duplicates will be marked)\n• Cancel: Review your data\n\nWhat would you like to do?`
-        
-        const userChoice = confirm(message + '\n\nClick OK to Skip Duplicates, Cancel to review data.')
-        
-        if (!userChoice) {
-          // User cancelled
-          alert('Import cancelled. Please review your data and remove duplicates manually if needed.')
-          return
-        }
-        
-        // User chose to skip duplicates, proceed with import
-        await performImport('skip')
-      } else {
-        // No duplicates found, proceed with normal import
-        console.log('No duplicates found, proceeding with import...')
-        await performImport('skip')
-      }
+      // TEMPORARY: Skip duplicate detection and use fallback import until schema migration completes
+      await fallbackImport(tradesData)
 
     } catch (error) {
       console.error('Import error:', error)
@@ -830,7 +793,10 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         const response = await fetch('/api/trades', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(trade)
+          body: JSON.stringify({
+            ...trade,
+            skipDuplicateCheck: true // Skip duplicate checking until schema migration
+          })
         })
 
         if (!response.ok) {
