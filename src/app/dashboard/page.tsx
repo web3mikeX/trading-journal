@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { motion } from "framer-motion"
 import { 
@@ -18,9 +18,7 @@ import PerformanceChart from "@/components/Dashboard/PerformanceChart"
 import RecentTrades from "@/components/Dashboard/RecentTrades"
 import TradingCalendar from "@/components/TradingCalendar"
 import CalendarDayModal from "@/components/CalendarDayModal"
-import TradeDetailModal from "@/components/TradeDetailModal"
 import Header from "@/components/Header"
-import ErrorBoundary from "@/components/ErrorBoundary"
 import { formatCurrency } from "@/lib/utils"
 import { useStats } from "@/hooks/useStats"
 import { useTheme } from "@/components/ThemeProvider"
@@ -41,86 +39,30 @@ function DashboardContent() {
   const themeClasses = getThemeClasses(theme)
   const { isAuthenticated, user, isLoading } = useAuth()
   const router = useRouter()
-  const [mounted, setMounted] = useState(false)
+  const { stats, loading, error: statsError } = useStats(user?.id || 'demo-demo-example-com')
   
-  // All hooks must be called consistently - moved to top level
-  const { stats, loading: statsLoading, error: statsError } = useStats(user?.id || '')
-  
-  // Calendar modal state - always declared
+  // Calendar modal state
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [selectedDayData, setSelectedDayData] = useState<CalendarDayData | undefined>()
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false)
-  
-  // Trade detail modal state - always declared
-  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
-  const [isTradeDetailModalOpen, setIsTradeDetailModalOpen] = useState(false)
 
-  // Always call useCallback hooks
-  const handleDayClick = useCallback((date: string, dayData?: CalendarDayData) => {
+  const handleDayClick = (date: string, dayData?: CalendarDayData) => {
     setSelectedDate(date)
     setSelectedDayData(dayData)
     setIsCalendarModalOpen(true)
-  }, [])
-
-  const closeCalendarModal = useCallback(() => {
-    setIsCalendarModalOpen(false)
-    setSelectedDate('')
-    setSelectedDayData(undefined)
-  }, [])
-
-  const handleTradeClick = useCallback((tradeId: string) => {
-    setSelectedTradeId(tradeId)
-    setIsTradeDetailModalOpen(true)
-  }, [])
-
-  const closeTradeDetailModal = useCallback(() => {
-    setIsTradeDetailModalOpen(false)
-    setSelectedTradeId(null)
-  }, [])
-
-  const onSaveSuccess = useCallback(() => {
-    // Close modal and refresh calendar data instead of full page reload
-    setIsCalendarModalOpen(false)
-    setSelectedDate('')
-    setSelectedDayData(undefined)
-    // Force a re-render of the TradingCalendar component
-    window.location.reload()
-  }, [])
-
-  // Always call useMemo hooks
-  const memoizedSelectedDayData = useMemo(() => selectedDayData, [selectedDayData])
-
-  // Fix hydration mismatch by waiting for component to mount
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (mounted && !isLoading && !isAuthenticated) {
-      router.push("/auth/register")
-    }
-  }, [mounted, isAuthenticated, isLoading, router])
-
-  // Always render the same content on server and client initially
-  if (!mounted) {
-    return (
-      <div className={`min-h-screen ${themeClasses.background}`}>
-        <Header />
-        <div className="px-6 py-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h1 className={`text-4xl font-bold ${themeClasses.text} mb-2`}>
-                Trading Journal
-              </h1>
-              <p className={themeClasses.textSecondary}>
-                Loading your dashboard...
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
   }
+
+  const closeCalendarModal = () => {
+    setIsCalendarModalOpen(false)
+    setSelectedDate('')
+    setSelectedDayData(undefined)
+  }
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/auth/signin")
+    }
+  }, [isAuthenticated, isLoading, router])
 
   if (isLoading) {
     return (
@@ -138,7 +80,7 @@ function DashboardContent() {
     )
   }
 
-  if (statsLoading) {
+  if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${themeClasses.background}`}>
         <div className={`text-lg ${themeClasses.text}`}>Loading dashboard...</div>
@@ -148,17 +90,8 @@ function DashboardContent() {
 
   if (statsError) {
     return (
-      <div className={`min-h-screen flex flex-col items-center justify-center ${themeClasses.background}`}>
-        <div className="text-lg text-red-400 mb-4">Error loading dashboard: {statsError}</div>
-        <div className="text-sm text-gray-500 mb-4">
-          It looks like you need to create an account first.
-        </div>
-        <button 
-          onClick={() => router.push("/auth/register")}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Create Account
-        </button>
+      <div className={`min-h-screen flex items-center justify-center ${themeClasses.background}`}>
+        <div className="text-lg text-red-400">Error loading dashboard: {statsError}</div>
       </div>
     )
   }
@@ -229,16 +162,10 @@ function DashboardContent() {
         {/* Trading Calendar */}
         <div className="px-6 mb-8">
           <div className="max-w-7xl mx-auto">
-            <ErrorBoundary fallback={
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
-                <p className="text-red-600 dark:text-red-400">Calendar temporarily unavailable</p>
-              </div>
-            }>
-              <TradingCalendar 
-                onDayClick={handleDayClick}
-                userId={user?.id || ''}
-              />
-            </ErrorBoundary>
+            <TradingCalendar 
+              onDayClick={handleDayClick}
+              userId={user?.id || 'demo-demo-example-com'}
+            />
           </div>
         </div>
 
@@ -250,11 +177,7 @@ function DashboardContent() {
                 <PerformanceChart data={stats.performanceData} />
               </div>
               <div className="h-[430px]">
-                <RecentTrades 
-                  trades={stats.recentTrades} 
-                  weekMetadata={stats.weekMetadata}
-                  onTradeClick={handleTradeClick}
-                />
+                <RecentTrades trades={stats.recentTrades} />
               </div>
             </div>
           </div>
@@ -293,22 +216,10 @@ function DashboardContent() {
         isOpen={isCalendarModalOpen}
         onClose={closeCalendarModal}
         date={selectedDate}
-        userId={user?.id || ''}
-        initialData={memoizedSelectedDayData}
-        onSaveSuccess={onSaveSuccess}
-      />
-
-      {/* Trade Detail Modal */}
-      <TradeDetailModal
-        isOpen={isTradeDetailModalOpen}
-        onClose={closeTradeDetailModal}
-        tradeId={selectedTradeId}
-        onEdit={(tradeId) => {
-          closeTradeDetailModal()
-          router.push(`/trades?edit=${tradeId}`)
-        }}
-        onDelete={() => {
-          closeTradeDetailModal()
+        userId={user?.id || 'demo-demo-example-com'}
+        initialData={selectedDayData}
+        onSaveSuccess={() => {
+          // Refresh the page after successful save
           window.location.reload()
         }}
       />

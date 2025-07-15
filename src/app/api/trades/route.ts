@@ -25,20 +25,6 @@ const TradeSchema = z.object({
   swap: z.number().default(0),
   notes: z.string().optional(),
   dataSource: z.string().default('manual'),
-  
-  // Enhanced CSV and execution data
-  rawCsvData: z.string().optional(),
-  fillIds: z.string().optional(),
-  executionMetadata: z.string().optional(),
-  timingData: z.string().optional(),
-  slippage: z.number().optional(),
-  orderDetails: z.string().optional(),
-  
-  // Advanced performance metrics
-  maxAdverseExcursion: z.number().optional(),
-  maxFavorableExcursion: z.number().optional(),
-  commissionPerUnit: z.number().optional(),
-  executionDuration: z.number().optional(),
 })
 
 // Calculate P&L for a trade
@@ -195,16 +181,6 @@ export async function POST(request: NextRequest) {
         swap: validatedData.swap,
         notes: validatedData.notes,
         dataSource: validatedData.dataSource,
-        rawCsvData: validatedData.rawCsvData,
-        fillIds: validatedData.fillIds,
-        executionMetadata: validatedData.executionMetadata,
-        timingData: validatedData.timingData,
-        slippage: validatedData.slippage,
-        orderDetails: validatedData.orderDetails,
-        maxAdverseExcursion: validatedData.maxAdverseExcursion,
-        maxFavorableExcursion: validatedData.maxFavorableExcursion,
-        commissionPerUnit: validatedData.commissionPerUnit,
-        executionDuration: validatedData.executionDuration,
         grossPnL: pnlData.grossPnL,
         netPnL: pnlData.netPnL,
         returnPercent: pnlData.returnPercent,

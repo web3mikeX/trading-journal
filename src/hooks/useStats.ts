@@ -25,12 +25,6 @@ interface Stats {
     netPnL?: number
     status: 'OPEN' | 'CLOSED' | 'CANCELLED'
   }>
-  weekMetadata: {
-    weekStart: Date
-    weekEnd: Date
-    weekLabel: string
-    tradeCount: number
-  }
   winningTrades: number
   losingTrades: number
 }
@@ -40,52 +34,43 @@ export function useStats(userId: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const fetchStats = useCallback(async () => {
     if (!userId) return
-    
-    const fetchStats = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        const response = await fetch(`/api/stats?userId=${userId}`, {
-          cache: 'no-store'
-        })
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch stats')
-        }
 
-        const data = await response.json()
-        
-        // Convert date strings back to Date objects for recentTrades
-        data.recentTrades = data.recentTrades.map((trade: any) => ({
-          ...trade,
-          entryDate: new Date(trade.entryDate),
-          exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
-        }))
-        
-        // Convert date strings back to Date objects for weekMetadata
-        if (data.weekMetadata) {
-          data.weekMetadata = {
-            ...data.weekMetadata,
-            weekStart: new Date(data.weekMetadata.weekStart),
-            weekEnd: new Date(data.weekMetadata.weekEnd)
-          }
-        }
-        
-        setStats(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred')
-      } finally {
-        setLoading(false)
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const response = await fetch(`/api/stats?userId=${userId}`, {
+        cache: 'no-store'
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch stats')
       }
-    }
 
-    fetchStats()
+      const data = await response.json()
+      
+      // Convert date strings back to Date objects for recentTrades
+      data.recentTrades = data.recentTrades.map((trade: any) => ({
+        ...trade,
+        entryDate: new Date(trade.entryDate),
+        exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
+      }))
+      
+      setStats(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
+    }
   }, [userId])
 
-  const refetchStats = useCallback(async () => {
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  const refetchStats = async () => {
     if (!userId) return
     
     try {
@@ -105,20 +90,11 @@ export function useStats(userId: string) {
         exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
       }))
       
-      // Convert date strings back to Date objects for weekMetadata
-      if (data.weekMetadata) {
-        data.weekMetadata = {
-          ...data.weekMetadata,
-          weekStart: new Date(data.weekMetadata.weekStart),
-          weekEnd: new Date(data.weekMetadata.weekEnd)
-        }
-      }
-      
       setStats(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     }
-  }, [userId])
+  }
 
   return { stats, loading, error, refetchStats }
 }

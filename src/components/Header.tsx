@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession, signOut } from "next-auth/react"
+import { useAuth } from "@/hooks/useAuth"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
@@ -17,13 +17,13 @@ import { useTheme } from "./ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 
 export default function Header() {
-  const { data: session } = useSession()
+  const { user, isAuthenticated, isLoading } = useAuth()
   const pathname = usePathname()
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-
-  // Show header even when session is loading, but hide nav items
-  if (!session) {
+  
+  // Show simple header only when not authenticated and not loading
+  if (!isAuthenticated && !isLoading) {
     return (
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -107,16 +107,16 @@ export default function Header() {
             <div className="hidden sm:flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center">
                 <span className="text-sm font-medium text-white">
-                  {session.user?.name?.[0] || session.user?.email?.[0] || "U"}
+                  {user?.name?.[0] || user?.email?.[0] || "U"}
                 </span>
               </div>
               <span className={`text-sm ${themeClasses.textSecondary}`}>
-                {session.user?.name || session.user?.email}
+                {user?.name || user?.email}
               </span>
             </div>
             <ThemeToggle variant="header" />
             <button
-              onClick={() => signOut({ callbackUrl: '/auth/signin' })}
+              onClick={() => window.location.href = '/auth/signin'}
               className={`flex items-center space-x-2 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                 theme === 'light' 
                   ? 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/50'

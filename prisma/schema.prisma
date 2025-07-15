@@ -9,8 +9,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model Account {
@@ -120,23 +120,8 @@ model Trade {
   dataSource     String      @default("manual") // "manual", "csv", "api", "email"
   
   // Duplicate detection
-  tradeHash      String?     // SHA-256 hash for exact duplicate detection
-  isDuplicate    Boolean     @default(false)
-  originalTradeId String?    // Reference to original trade if this is a duplicate
-  
-  // Enhanced CSV and execution data
-  rawCsvData     String?     // JSON string of original CSV row data
-  fillIds        String?     // JSON array of broker fill IDs (buyFillId, sellFillId)
-  executionMetadata String?  // JSON object: price format, tick size, exchange info
-  timingData     String?     // JSON object: precise timestamps, duration analysis
-  slippage       Float?      // Execution slippage in currency units
-  orderDetails   String?     // JSON object: order type, status, partial fills
-  
-  // Advanced performance metrics
-  maxAdverseExcursion    Float?  // Maximum adverse excursion (MAE)
-  maxFavorableExcursion  Float?  // Maximum favorable excursion (MFE)
-  commissionPerUnit      Float?  // Commission per contract/share
-  executionDuration      Int?    // Duration in milliseconds from entry to exit order
+  tradeHash      String?     // Hash for duplicate detection
+  isDuplicate    Boolean     @default(false) // Flag for duplicate trades
   
   // Relationships
   user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -146,8 +131,6 @@ model Trade {
   @@index([userId, entryDate])
   @@index([userId, symbol])
   @@index([userId, status])
-  @@index([userId, tradeHash])
-  @@unique([userId, tradeHash])
 }
 
 model JournalEntry {

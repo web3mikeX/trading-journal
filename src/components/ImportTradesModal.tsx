@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
 import { motion, AnimatePresence } from "framer-motion"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/hooks/useAuth"
 import { 
   X, 
   Upload, 
@@ -46,25 +46,13 @@ interface ParsedTrade {
   isValid: boolean
   errors: string[]
   
-  // Enhanced CSV and execution data
-  rawCsvData?: string
-  fillIds?: string
-  executionMetadata?: string
-  timingData?: string
-  slippage?: number
-  orderDetails?: string
-  
-  // Advanced performance metrics
-  maxAdverseExcursion?: number
-  maxFavorableExcursion?: number
-  commissionPerUnit?: number
-  executionDuration?: number
+  // Note: Enhanced fields removed as they don't exist in current schema
 }
 
 export default function ImportTradesModal({ isOpen, onClose, onImportComplete }: ImportTradesModalProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  const { data: session } = useSession()
+  const { user } = useAuth()
   const { addToast } = useToast()
   
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'duplicates' | 'importing'>('upload')
@@ -343,14 +331,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           // For now, we'll use a placeholder that can be enhanced later
           const slippage = null // Can be calculated if we have bid/ask data
           
-          // Store enhanced data
-          trade.rawCsvData = JSON.stringify(rawCsvData)
-          trade.fillIds = fillIds.length > 0 ? JSON.stringify(fillIds) : undefined
-          trade.executionMetadata = JSON.stringify(executionMetadata)
-          trade.timingData = JSON.stringify(timingData)
-          trade.slippage = slippage || undefined
-          trade.executionDuration = executionDuration || undefined
-          trade.commissionPerUnit = finalTotalFees > 0 ? finalTotalFees / quantity : undefined
+          // Note: Enhanced data storage removed as fields don't exist in current schema
           
           if (trade.side === 'LONG') {
             trade.entryDate = buyDate.toISOString()
@@ -380,7 +361,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         
         // Enhanced P&L handling with proper gross/net separation
         if (grossPnL !== undefined && grossPnL !== 0) {
-          trade.grossPnL = grossPnL
+          // Note: grossPnL field doesn't exist in current schema, using netPnL only
           trade.netPnL = netPnL
           trade.commission = finalTotalFees // Total commission including estimated commission
           trade.entryFees = fees / 2 // Split total fees between entry and exit
@@ -417,7 +398,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           const finalTotalFees = commission + estimatedCommission
           const netPnL = grossPnL - finalTotalFees
           
-          trade.grossPnL = grossPnL
+          // Note: grossPnL field doesn't exist in current schema, using netPnL only
           trade.netPnL = netPnL
           trade.commission = finalTotalFees
         }
@@ -618,7 +599,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
   }
 
   const handleImport = async () => {
-    if (!session?.user?.id) {
+    if (!user?.id) {
       alert('You must be signed in to import trades. Please sign in and try again.')
       return
     }
@@ -636,7 +617,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         
         // Convert to API format with enhanced round-trip support
         const tradeData = {
-          userId: session?.user?.id || '',
+          userId: user?.id || '',
           symbol: trade.symbol,
           side: trade.side,
           entryDate: new Date(trade.entryDate).toISOString(),
@@ -667,19 +648,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           commission: trade.commission || 0, // Use calculated commission values
           swap: trade.swap || 0,
           
-          // Enhanced CSV and execution data
-          ...(trade.rawCsvData && { rawCsvData: trade.rawCsvData }),
-          ...(trade.fillIds && { fillIds: trade.fillIds }),
-          ...(trade.executionMetadata && { executionMetadata: trade.executionMetadata }),
-          ...(trade.timingData && { timingData: trade.timingData }),
-          ...(trade.slippage !== undefined && { slippage: trade.slippage }),
-          ...(trade.orderDetails && { orderDetails: trade.orderDetails }),
-          
-          // Advanced performance metrics
-          ...(trade.maxAdverseExcursion !== undefined && { maxAdverseExcursion: trade.maxAdverseExcursion }),
-          ...(trade.maxFavorableExcursion !== undefined && { maxFavorableExcursion: trade.maxFavorableExcursion }),
-          ...(trade.commissionPerUnit !== undefined && { commissionPerUnit: trade.commissionPerUnit }),
-          ...(trade.executionDuration !== undefined && { executionDuration: trade.executionDuration })
+          // Note: Enhanced data fields removed as they don't exist in current schema
         }
 
         console.log(`Importing trade ${i + 1}:`, tradeData)
@@ -1285,7 +1254,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                             const { trade } = tradesToImport[i]
                             
                             const tradeData = {
-                              userId: session?.user?.id || '',
+                              userId: user?.id || '',
                               symbol: trade.symbol,
                               side: trade.side,
                               entryDate: new Date(trade.entryDate).toISOString(),

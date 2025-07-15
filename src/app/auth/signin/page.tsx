@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -10,7 +10,7 @@ import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import ThemeToggle from "@/components/ThemeToggle"
 
-function SignInContent() {
+export default function SignIn() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const router = useRouter()
@@ -216,13 +216,5 @@ function SignInContent() {
         </motion.div>
       </motion.div>
     </div>
-  )
-}
-
-export default function SignIn() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <SignInContent />
-    </Suspense>
   )
 }

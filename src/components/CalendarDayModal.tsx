@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useDropzone } from "react-dropzone"
 import { 
   X, 
@@ -21,7 +21,6 @@ import {
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { useApiThrottle } from "@/hooks/useApiThrottle"
 
 interface Trade {
   id: string
@@ -74,87 +73,41 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   
-  const { shouldThrottle, trackApiCall } = useApiThrottle()
-  
   const dateObj = new Date(date)
   const isToday = date === new Date().toISOString().split('T')[0]
   
-  // Track if we've already loaded data for this date to prevent infinite loops
-  const loadedDateRef = useRef<string | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  
-  // Memoize the loadDayData function to prevent unnecessary re-renders
-  const loadDayData = useCallback(async () => {
-    // Cancel any previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
+  // Load day data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        // Set initial data immediately for quick display
+        setDayData(initialData)
+        setNotes(initialData.notes || '')
+        setMood(initialData.mood)
+        setImages(initialData.images || [])
+      }
+      // Always load full data from API to ensure we have complete information
+      loadDayData()
     }
-    
-    // Create new abort controller for this request
-    abortControllerRef.current = new AbortController()
-    
+  }, [isOpen, date, initialData])
+  
+  const loadDayData = async () => {
     setLoading(true)
     try {
-      // Ensure we have a clean date format (YYYY-MM-DD)
-      const cleanDate = new Date(date).toISOString().split('T')[0]
-      const apiUrl = `/api/calendar/${cleanDate}?userId=${userId}`
-      
-      // Check if we should throttle this request
-      if (shouldThrottle(apiUrl)) {
-        console.warn('API request throttled for calendar day:', cleanDate)
-        return
-      }
-      
-      trackApiCall(apiUrl)
-      const response = await fetch(apiUrl, {
-        signal: abortControllerRef.current.signal
-      })
-      
+      const response = await fetch(`/api/calendar/${date}?userId=${userId}`)
       if (response.ok) {
         const data = await response.json()
         setDayData(data)
         setNotes(data.notes || '')
         setMood(data.mood)
         setImages(data.images || [])
-        loadedDateRef.current = cleanDate
       }
     } catch (error) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        console.error('Failed to load day data:', error)
-      }
+      console.error('Failed to load day data:', error)
     } finally {
       setLoading(false)
     }
-  }, [date, userId])
-  
-  // Load day data when modal opens or date changes
-  useEffect(() => {
-    if (isOpen && date) {
-      const cleanDate = new Date(date).toISOString().split('T')[0]
-      
-      // Only load if we haven't already loaded this date
-      if (loadedDateRef.current !== cleanDate) {
-        if (initialData) {
-          // Set initial data immediately for quick display
-          setDayData(initialData)
-          setNotes(initialData.notes || '')
-          setMood(initialData.mood)
-          setImages(initialData.images || [])
-        }
-        // Always load full data from API to ensure we have complete information
-        loadDayData()
-      }
-    }
-    
-    // Cleanup function to cancel requests when component unmounts or dependencies change
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-    }
-  }, [isOpen, date, loadDayData]) // Removed initialData from dependencies
-  
-  // loadDayData function moved above and memoized with useCallback
+  }
   
   const saveDayData = async () => {
     setSaving(true)
@@ -162,29 +115,19 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
     setSaveError(null)
     
     try {
-      const requestData = {
-        userId,
-        notes: notes.trim() || undefined,
-        mood: mood && mood >= 1 && mood <= 5 ? mood : undefined,
-        images: images.length > 0 ? images : undefined
-      }
-      
-      console.log('Sending calendar data:', requestData)
-      
-      // Ensure we have a clean date format (YYYY-MM-DD)
-      const cleanDate = new Date(date).toISOString().split('T')[0]
-      console.log('Using date:', cleanDate)
-      
-      const response = await fetch(`/api/calendar/${cleanDate}`, {
+      const response = await fetch(`/api/calendar/${date}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+          userId,
+          notes: notes.trim() || undefined,
+          mood,
+          images: images.length > 0 ? images : undefined
+        })
       })
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('API Error Response:', errorData)
-        throw new Error(`Save failed: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`)
+        throw new Error(`Save failed: ${response.status} ${response.statusText}`)
       }
       
       const updatedData = await response.json()
