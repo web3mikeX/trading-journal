@@ -17,6 +17,7 @@ import { useTheme } from "./ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 
 export default function Header() {
+  // Updated to DetaWise branding
   const { user, isAuthenticated, isLoading } = useAuth()
   const pathname = usePathname()
   const { theme } = useTheme()
@@ -41,7 +42,7 @@ export default function Header() {
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                 <TrendingUpIcon className="w-5 h-5 text-white" />
               </div>
-              <span className={`text-xl font-bold ${themeClasses.text}`}>TradingJournal</span>
+              <span className={`text-xl font-bold ${themeClasses.text}`}>DetaWise</span>
             </Link>
             
             <div className="flex items-center space-x-4">
@@ -79,7 +80,7 @@ export default function Header() {
               <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                 <TrendingUpIcon className="w-5 h-5 text-white" />
               </div>
-              <span className={`text-xl font-bold ${themeClasses.text}`}>TradingJournal</span>
+              <span className={`text-xl font-bold ${themeClasses.text}`}>DetaWise</span>
             </Link>
             
             <nav className="hidden md:flex space-x-1">

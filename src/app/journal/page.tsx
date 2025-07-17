@@ -116,7 +116,7 @@ export default function Journal() {
           transition={{ duration: 0.6 }}
         >
           <div className="flex items-center justify-between mb-8">
-            <h1 className={`text-3xl font-bold ${themeClasses.text}`}>Trading Journal</h1>
+            <h1 className={`text-3xl font-bold ${themeClasses.text}`}>DetaWise Journal</h1>
             <div className="flex items-center space-x-3">
               <ExportButton
                 options={[
