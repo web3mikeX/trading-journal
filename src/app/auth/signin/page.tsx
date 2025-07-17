@@ -1,16 +1,16 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { signIn, getSession } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { LogIn, Eye, EyeOff, Loader2, Mail, Lock, UserPlus, AlertCircle } from "lucide-react"
+import { TrendingUpIcon, Eye, EyeOff, Loader2, Mail, Lock, UserPlus, AlertCircle } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import ThemeToggle from "@/components/ThemeToggle"
 
-export default function SignIn() {
+function SignInContent() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const router = useRouter()
@@ -48,7 +48,6 @@ export default function SignIn() {
       if (result?.error) {
         setError("Invalid email or password")
       } else {
-        // Check if sign in was successful
         const session = await getSession()
         if (session) {
           router.push("/dashboard")
@@ -65,12 +64,13 @@ export default function SignIn() {
 
   const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    // Clear error when user starts typing
     if (error) setError('')
   }
 
   return (
-    <div className={`min-h-screen ${themeClasses.background} flex flex-col items-center justify-center relative`}>
+    <div className={`min-h-screen ${themeClasses.background} flex flex-col items-center justify-center relative overflow-hidden`}>
+      {/* Background - Match dashboard theme */}
+      <div className={`absolute inset-0 ${themeClasses.background}`}></div>
       {/* Theme Toggle */}
       <div className="absolute top-6 right-6 z-50">
         <ThemeToggle variant="standalone" />
@@ -80,7 +80,7 @@ export default function SignIn() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md px-6"
+        className="w-full max-w-md px-6 relative z-10"
       >
         {/* Header */}
         <div className="text-center mb-8">
@@ -88,15 +88,15 @@ export default function SignIn() {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-            className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4"
+            className="w-16 h-16 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg"
           >
-            <LogIn className="w-8 h-8 text-white" />
+            <TrendingUpIcon className="w-8 h-8 text-white" />
           </motion.div>
-          <h1 className={`text-3xl font-bold ${themeClasses.text} mb-2`}>
-            Welcome Back
+          <h1 className={`text-4xl font-bold ${themeClasses.text} mb-2`}>
+            Welcome to DetaWise
           </h1>
           <p className={`${themeClasses.textSecondary}`}>
-            Sign in to your trading journal
+            Smart Trading Analytics & Insights
           </p>
         </div>
 
@@ -116,7 +116,7 @@ export default function SignIn() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className={`${themeClasses.surface} rounded-xl shadow-xl border ${themeClasses.border} p-8`}
+          className={`${themeClasses.surface} rounded-2xl shadow-2xl border ${themeClasses.border} p-8 backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95`}
         >
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Error Message */}
@@ -138,7 +138,7 @@ export default function SignIn() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className={`w-full pl-10 pr-4 py-3 rounded-lg border ${themeClasses.border} ${themeClasses.input} focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-colors`}
+                  className={`w-full pl-10 pr-4 py-3 rounded-lg border ${themeClasses.border} ${themeClasses.input} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-blue-400`}
                   placeholder="Enter your email"
                   required
                   disabled={isLoading}
@@ -157,7 +157,7 @@ export default function SignIn() {
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
-                  className={`w-full pl-10 pr-12 py-3 rounded-lg border ${themeClasses.border} ${themeClasses.input} focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-colors`}
+                  className={`w-full pl-10 pr-12 py-3 rounded-lg border ${themeClasses.border} ${themeClasses.input} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-blue-400`}
                   placeholder="Enter your password"
                   required
                   disabled={isLoading}
@@ -177,7 +177,7 @@ export default function SignIn() {
             <button
               type="submit"
               disabled={isLoading || !formData.email || !formData.password}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] disabled:hover:scale-100 shadow-lg flex items-center justify-center space-x-2"
             >
               {isLoading ? (
                 <>
@@ -186,7 +186,7 @@ export default function SignIn() {
                 </>
               ) : (
                 <>
-                  <LogIn className="w-5 h-5" />
+                  <TrendingUpIcon className="w-5 h-5" />
                   <span>Sign In</span>
                 </>
               )}
@@ -199,7 +199,7 @@ export default function SignIn() {
               Don't have an account?{' '}
               <Link
                 href="/auth/register"
-                className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center space-x-1"
+                className={`${themeClasses.accent} hover:text-blue-700 dark:hover:text-blue-300 font-medium inline-flex items-center space-x-1 transition-colors duration-200`}
               >
                 <UserPlus className="w-4 h-4" />
                 <span>Create Account</span>
@@ -216,5 +216,13 @@ export default function SignIn() {
         </motion.div>
       </motion.div>
     </div>
+  )
+}
+
+export default function SignIn() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SignInContent />
+    </Suspense>
   )
 }
