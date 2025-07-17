@@ -1,43 +1,29 @@
-import { useSession } from "next-auth/react"
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 
 export function useAuth() {
-  const { data: session, status } = useSession()
-  const [demoMode, setDemoMode] = useState(false)
   
+  // Initialize demo user in database (non-blocking)
   useEffect(() => {
-    // Enable demo mode after initial load if no session
-    if (status !== "loading" && !session) {
-      setDemoMode(true)
+    const initDemo = async () => {
+      try {
+        await fetch('/api/init-demo', { method: 'POST' })
+      } catch (error) {
+        console.error('Failed to initialize demo user:', error)
+      }
     }
-  }, [status, session])
+    
+    initDemo()
+  }, [])
   
-  // For demo purposes, if there's no session, return a demo user
-  if (status === "loading") {
-    return {
-      user: null,
-      isAuthenticated: false,
-      isLoading: true,
-    }
-  }
-  
-  if (!session && demoMode) {
-    // Demo mode - return mike's user for testing with real data
-    return {
-      user: {
-        id: "cmcwu8b5m0001m17ilm0triy8",
-        email: "degenbitkid@gmail.com",
-        name: "mike",
-        image: null,
-      },
-      isAuthenticated: true,
-      isLoading: false,
-    }
-  }
-  
+  // Always return demo user immediately
   return {
-    user: session?.user || null,
-    isAuthenticated: !!session,
+    user: {
+      id: "cmcwu8b5m0001m17ilm0triy8",
+      email: "degenbitkid@gmail.com",
+      name: "mike",
+      image: null,
+    },
+    isAuthenticated: true,
     isLoading: false,
   }
 }

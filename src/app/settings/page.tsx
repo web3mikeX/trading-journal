@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/hooks/useAuth"
 import { 
   UserIcon, 
   BellIcon, 
@@ -17,9 +17,10 @@ import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 
 export default function Settings() {
+  // FIXED: Using useAuth instead of useSession
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  const { data: session } = useSession()
+  const { user } = useAuth()
   const [showApiKey, setShowApiKey] = useState(false)
   const [settings, setSettings] = useState({
     notifications: true,
@@ -60,7 +61,7 @@ export default function Settings() {
                   <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>Name</label>
                   <input
                     type="text"
-                    value={session?.user?.name || ""}
+                    value={user?.name || ""}
                     className={`${themeClasses.input}`}
                     readOnly
                   />
@@ -69,7 +70,7 @@ export default function Settings() {
                   <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>Email</label>
                   <input
                     type="email"
-                    value={session?.user?.email || ""}
+                    value={user?.email || ""}
                     className={`${themeClasses.input}`}
                     readOnly
                   />

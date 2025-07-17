@@ -8,7 +8,7 @@ import Header from "@/components/Header"
 import ExportButton from "@/components/ExportButton"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/hooks/useAuth"
 import { exportPerformanceReport } from "@/lib/exports"
 import { useTrades } from "@/hooks/useTrades"
 
@@ -44,17 +44,17 @@ interface StatsData {
 export default function Analytics() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  const { data: session } = useSession()
+  const { user } = useAuth()
   const [stats, setStats] = useState<StatsData | null>(null)
   const [loading, setLoading] = useState(true)
-  const { trades } = useTrades(session?.user?.id || '')
+  const { trades } = useTrades(user?.id || '')
 
   useEffect(() => {
     const fetchStats = async () => {
-      if (!session?.user?.id) return
+      if (!user?.id) return
       
       try {
-        const response = await fetch(`/api/stats?userId=${session.user.id}`)
+        const response = await fetch(`/api/stats?userId=${user.id}`)
         if (response.ok) {
           const data = await response.json()
           setStats(data)
@@ -67,7 +67,7 @@ export default function Analytics() {
     }
 
     fetchStats()
-  }, [session?.user?.id])
+  }, [user?.id])
 
   if (loading) {
     return (
