@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from './useAuth'
 
 interface JournalEntry {
   id: string
@@ -52,7 +52,7 @@ interface JournalResponse {
 }
 
 export const useJournal = () => {
-  const { data: session } = useSession()
+  const { user } = useAuth()
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -68,14 +68,14 @@ export const useJournal = () => {
     offset = 0,
     append = false
   ) => {
-    if (!session?.user?.id) return
+    if (!user?.id) return
 
     setLoading(true)
     setError(null)
 
     try {
       const params = new URLSearchParams({
-        userId: session.user.id,
+        userId: user.id,
         limit: limit.toString(),
         offset: offset.toString()
       })
@@ -109,7 +109,7 @@ export const useJournal = () => {
 
   // Create new journal entry
   const createEntry = async (data: CreateJournalEntryData): Promise<JournalEntry | null> => {
-    if (!session?.user?.id) return null
+    if (!user?.id) return null
 
     setError(null)
 
@@ -121,7 +121,7 @@ export const useJournal = () => {
         },
         body: JSON.stringify({
           ...data,
-          userId: session.user.id
+          userId: user.id
         })
       })
 
@@ -143,7 +143,7 @@ export const useJournal = () => {
 
   // Update journal entry
   const updateEntry = async (id: string, data: UpdateJournalEntryData): Promise<JournalEntry | null> => {
-    if (!session?.user?.id) return null
+    if (!user?.id) return null
 
     setError(null)
 
@@ -155,7 +155,7 @@ export const useJournal = () => {
         },
         body: JSON.stringify({
           ...data,
-          userId: session.user.id
+          userId: user.id
         })
       })
 
@@ -178,12 +178,12 @@ export const useJournal = () => {
 
   // Delete journal entry
   const deleteEntry = async (id: string): Promise<boolean> => {
-    if (!session?.user?.id) return false
+    if (!user?.id) return false
 
     setError(null)
 
     try {
-      const response = await fetch(`/api/journal/${id}?userId=${session.user.id}`, {
+      const response = await fetch(`/api/journal/${id}?userId=${user.id}`, {
         method: 'DELETE'
       })
 
@@ -204,12 +204,12 @@ export const useJournal = () => {
 
   // Get journal entry by ID
   const getEntry = async (id: string): Promise<JournalEntry | null> => {
-    if (!session?.user?.id) return null
+    if (!user?.id) return null
 
     setError(null)
 
     try {
-      const response = await fetch(`/api/journal/${id}?userId=${session.user.id}`)
+      const response = await fetch(`/api/journal/${id}?userId=${user.id}`)
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -232,10 +232,10 @@ export const useJournal = () => {
 
   // Initial load
   useEffect(() => {
-    if (session?.user?.id) {
+    if (user?.id) {
       fetchEntries()
     }
-  }, [session?.user?.id])
+  }, [user?.id])
 
   return {
     entries,

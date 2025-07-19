@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { getContractMultiplier, getContractType } from '@/lib/contractSpecs'
 
 const UpdateTradeSchema = z.object({
   symbol: z.string().min(1, 'Symbol is required').optional(),
@@ -23,23 +24,43 @@ const UpdateTradeSchema = z.object({
   notes: z.string().optional(),
 })
 
-// Calculate P&L for a trade
+// Calculate P&L for a trade - using same logic as main trade route
 function calculatePnL(trade: any) {
   if (!trade.exitPrice || !trade.entryPrice) {
-    return { grossPnL: null, netPnL: null, returnPercent: null }
+    return { 
+      grossPnL: null, 
+      netPnL: null, 
+      returnPercent: null,
+      contractMultiplier: getContractMultiplier(trade.symbol, trade.market),
+      contractType: getContractType(trade.symbol, trade.market)
+    }
   }
 
-  const grossPnL = trade.side === 'LONG' 
-    ? (trade.exitPrice - trade.entryPrice) * trade.quantity
-    : (trade.entryPrice - trade.exitPrice) * trade.quantity
+  // Get contract specifications
+  const contractMultiplier = getContractMultiplier(trade.symbol, trade.market)
+  const contractType = getContractType(trade.symbol, trade.market)
+
+  // Calculate points difference
+  const pointsDifference = trade.side === 'LONG' 
+    ? (trade.exitPrice - trade.entryPrice)
+    : (trade.entryPrice - trade.exitPrice)
+
+  // Apply contract multiplier to calculate gross PnL
+  const grossPnL = pointsDifference * trade.quantity * contractMultiplier
 
   const totalFees = (trade.entryFees || 0) + (trade.exitFees || 0) + (trade.commission || 0) + (trade.swap || 0)
   const netPnL = grossPnL - totalFees
 
-  const totalInvested = trade.entryPrice * trade.quantity
-  const returnPercent = (netPnL / totalInvested) * 100
+  const totalInvested = trade.entryPrice * trade.quantity * contractMultiplier
+  const returnPercent = totalInvested > 0 ? (netPnL / totalInvested) * 100 : 0
 
-  return { grossPnL, netPnL, returnPercent }
+  return { 
+    grossPnL, 
+    netPnL, 
+    returnPercent,
+    contractMultiplier,
+    contractType
+  }
 }
 
 // GET /api/trades/[id] - Get a specific trade
@@ -111,6 +132,8 @@ export async function PUT(
         grossPnL: pnlData.grossPnL,
         netPnL: pnlData.netPnL,
         returnPercent: pnlData.returnPercent,
+        contractMultiplier: pnlData.contractMultiplier,
+        contractType: pnlData.contractType,
         status: mergedData.exitDate ? 'CLOSED' : 'OPEN'
       },
       include: {

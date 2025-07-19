@@ -1,0 +1,342 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?   // Hashed password for credentials auth
+  isEmailVerified Boolean @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Trading profile
+  baseCurrency     String  @default("USD")
+  initialBalance   Float @default(10000)
+  riskPercentage   Float @default(2)
+  timezone         String  @default("UTC")
+  tradingStyle     String? // "Day Trader", "Swing Trader", "Position Trader"
+  experience       String? // "Beginner", "Intermediate", "Advanced", "Professional"
+
+  accounts         Account[]
+  sessions         Session[]
+  trades           Trade[]
+  journalEntries   JournalEntry[]
+  tradingGoals     TradingGoal[]
+  tags             Tag[]
+  importJobs       ImportJob[]
+  brokerConnections BrokerConnection[]
+  syncLogs         SyncLog[]
+  calendarEntries  CalendarEntry[]
+
+  @@map("users")
+}
+
+model Trade {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Basic trade info
+  symbol         String
+  side           TradeType // "LONG" or "SHORT"
+  strategy       String?
+  setup          String?
+  market         String    @default("STOCK") // "STOCK", "FOREX", "CRYPTO", "FUTURES", "OPTIONS"
+  
+  // Contract specifications
+  contractType       String  @default("STANDARD") // "STANDARD", "MICRO", "MINI", "STANDARD_FUTURES", "MICRO_FUTURES"
+  contractMultiplier Float   @default(1.0) // Multiplier for PnL calculations (e.g., $2 for MNQU5)
+  
+  // Entry details
+  entryDate      DateTime
+  entryPrice     Float
+  quantity       Float
+  entryFees      Float     @default(0)
+  
+  // Exit details (optional for open positions)
+  exitDate       DateTime?
+  exitPrice      Float?
+  exitFees       Float     @default(0)
+  
+  // Risk management
+  stopLoss       Float?
+  takeProfit     Float?
+  riskAmount     Float?
+  
+  // Performance calculations
+  grossPnL       Float?
+  netPnL         Float?
+  commission     Float     @default(0)
+  swap           Float     @default(0)
+  returnPercent  Float?
+  
+  // Trade metadata
+  status         TradeStatus @default(OPEN) // "OPEN", "CLOSED", "CANCELLED"
+  notes          String?
+  screenshots    String?     // JSON array of screenshot URLs
+  dataSource     String      @default("manual") // "manual", "csv", "api", "email"
+  
+  // Duplicate detection
+  tradeHash      String?     // SHA-256 hash for exact duplicate detection
+  isDuplicate    Boolean     @default(false)
+  originalTradeId String?    // Reference to original trade if this is a duplicate
+  
+  // Enhanced CSV and execution data
+  rawCsvData     String?     // JSON string of original CSV row data
+  fillIds        String?     // JSON array of broker fill IDs (buyFillId, sellFillId)
+  executionMetadata String?  // JSON object: price format, tick size, exchange info
+  timingData     String?     // JSON object: precise timestamps, duration analysis
+  slippage       Float?      // Execution slippage in currency units
+  orderDetails   String?     // JSON object: order type, status, partial fills
+  
+  // Advanced performance metrics
+  maxAdverseExcursion    Float?  // Maximum adverse excursion (MAE)
+  maxFavorableExcursion  Float?  // Maximum favorable excursion (MFE)
+  commissionPerUnit      Float?  // Commission per contract/share
+  executionDuration      Int?    // Duration in milliseconds from entry to exit order
+  
+  // Relationships
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journalEntries JournalEntry[]
+  tags           TradeTag[]
+
+  @@index([userId, entryDate])
+  @@index([userId, symbol])
+  @@index([userId, status])
+  @@index([userId, tradeHash])
+  @@unique([userId, tradeHash])
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  tradeId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  title        String
+  content      String
+  entryType    JournalType @default(GENERAL) // "PRE_TRADE", "DURING_TRADE", "POST_TRADE", "GENERAL", "LESSON"
+  mood         Int?       // 1-5 scale
+  confidence   Int?       // 1-5 scale
+  fear         Int?       // 1-5 scale
+  excitement   Int?       // 1-5 scale
+  
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trade Trade? @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, entryType])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+
+  name        String
+  color       String   @default("#3B82F6")
+  description String?
+
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades TradeTag[]
+
+  @@unique([userId, name])
+}
+
+model TradeTag {
+  tradeId String
+  tagId   String
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([tradeId, tagId])
+}
+
+model TradingGoal {
+  id        String   @id @default(cuid())
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  title          String
+  description    String?
+  targetValue    Float?
+  currentValue   Float     @default(0)
+  targetDate     DateTime?
+  goalType       GoalType  // "PROFIT_TARGET", "WIN_RATE", "MAX_DRAWDOWN", "TRADE_COUNT", "CUSTOM"
+  status         GoalStatus @default(ACTIVE) // "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"
+  isCompleted    Boolean   @default(false)
+  completedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+enum TradeType {
+  LONG
+  SHORT
+}
+
+enum TradeStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+enum JournalType {
+  PRE_TRADE
+  DURING_TRADE
+  POST_TRADE
+  GENERAL
+  LESSON
+}
+
+enum GoalType {
+  PROFIT_TARGET
+  WIN_RATE
+  MAX_DRAWDOWN
+  TRADE_COUNT
+  CUSTOM
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+model ImportJob {
+  id            String   @id @default(cuid())
+  userId        String
+  filename      String
+  status        ImportStatus @default(PENDING)
+  totalRows     Int      @default(0)
+  processedRows Int      @default(0)
+  errors        String?  // JSON array of errors
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+}
+
+model BrokerConnection {
+  id            String   @id @default(cuid())
+  userId        String
+  brokerName    String   // 'tradovate', 'robinhood', etc.
+  apiKey        String   // encrypted
+  accountType   String?  // 'demo' or 'live' for Tradovate
+  isActive      Boolean  @default(true)
+  lastSync      DateTime?
+  syncFrequency String   @default("manual") // 'manual', 'hourly', 'daily'
+  settings      String?  // JSON settings
+  createdAt     DateTime @default(now())
+  
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncLogs      SyncLog[]
+  
+  @@index([userId, brokerName])
+}
+
+model SyncLog {
+  id                  String   @id @default(cuid())
+  userId              String
+  brokerConnectionId  String
+  status              SyncStatus @default(SUCCESS)
+  tradesImported      Int      @default(0)
+  errors              String?  // JSON array of errors
+  syncedAt            DateTime @default(now())
+  
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brokerConnection    BrokerConnection @relation(fields: [brokerConnectionId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, syncedAt])
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SyncStatus {
+  SUCCESS
+  ERROR
+  PARTIAL
+}
+
+model CalendarEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime // The calendar date (YYYY-MM-DD)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Diary and notes
+  notes       String?  // Rich text diary content
+  mood        Int?     // 1-5 scale mood for the day
+  images      String?  // JSON array of image URLs/paths
+  
+  // Daily trading summary (calculated fields)
+  dailyPnL    Float?   // Total P&L for the day
+  tradesCount Int      @default(0)
+  winningTrades Int    @default(0)
+  losingTrades  Int    @default(0)
+  winRate     Float?   // Win rate for the day
+  
+  // Relationships
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, date]) // One entry per user per day
+  @@index([userId, date])
+  @@index([date]) // For efficient date range queries
+}

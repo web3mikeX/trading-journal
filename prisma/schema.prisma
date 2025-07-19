@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -26,8 +20,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -41,92 +34,72 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // Hashed password for credentials auth
-  isEmailVerified Boolean @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Trading profile
-  baseCurrency     String  @default("USD")
-  initialBalance   Float @default(10000)
-  riskPercentage   Float @default(2)
-  timezone         String  @default("UTC")
-  tradingStyle     String? // "Day Trader", "Swing Trader", "Position Trader"
-  experience       String? // "Beginner", "Intermediate", "Advanced", "Professional"
-
-  accounts         Account[]
-  sessions         Session[]
-  trades           Trade[]
-  journalEntries   JournalEntry[]
-  tradingGoals     TradingGoal[]
-  tags             Tag[]
-  importJobs       ImportJob[]
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?
+  isEmailVerified   Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  baseCurrency      String             @default("USD")
+  initialBalance    Float              @default(10000)
+  riskPercentage    Float              @default(2)
+  timezone          String             @default("UTC")
+  tradingStyle      String?
+  experience        String?
+  accounts          Account[]
   brokerConnections BrokerConnection[]
-  syncLogs         SyncLog[]
-  calendarEntries  CalendarEntry[]
+  calendarEntries   CalendarEntry[]
+  importJobs        ImportJob[]
+  journalEntries    JournalEntry[]
+  sessions          Session[]
+  syncLogs          SyncLog[]
+  tags              Tag[]
+  trades            Trade[]
+  tradingGoals      TradingGoal[]
 
   @@map("users")
 }
 
 model Trade {
-  id        String   @id @default(cuid())
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Basic trade info
-  symbol         String
-  side           TradeType // "LONG" or "SHORT"
-  strategy       String?
-  setup          String?
-  market         String    @default("STOCK") // "STOCK", "FOREX", "CRYPTO", "FUTURES", "OPTIONS"
-  
-  // Contract specifications
-  contractType       String  @default("STANDARD") // "STANDARD", "MICRO", "MINI", "STANDARD_FUTURES", "MICRO_FUTURES"
-  contractMultiplier Float   @default(1.0) // Multiplier for PnL calculations (e.g., $2 for MNQU5)
-  
-  // Entry details
-  entryDate      DateTime
-  entryPrice     Float
-  quantity       Float
-  entryFees      Float     @default(0)
-  
-  // Exit details (optional for open positions)
-  exitDate       DateTime?
-  exitPrice      Float?
-  exitFees       Float     @default(0)
-  
-  // Risk management
-  stopLoss       Float?
-  takeProfit     Float?
-  riskAmount     Float?
-  
-  // Performance calculations
-  grossPnL       Float?
-  netPnL         Float?
-  commission     Float     @default(0)
-  swap           Float     @default(0)
-  returnPercent  Float?
-  
-  // Trade metadata
-  status         TradeStatus @default(OPEN) // "OPEN", "CLOSED", "CANCELLED"
-  notes          String?
-  screenshots    String?     // JSON array of screenshot URLs
-  dataSource     String      @default("manual") // "manual", "csv", "api", "email"
-  
-  // Duplicate detection
-  tradeHash      String?     // Hash for duplicate detection
-  isDuplicate    Boolean     @default(false) // Flag for duplicate trades
-  
-  // Relationships
-  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  journalEntries JournalEntry[]
-  tags           TradeTag[]
+  id                 String         @id @default(cuid())
+  userId             String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  symbol             String
+  side               String
+  strategy           String?
+  setup              String?
+  market             String         @default("STOCK")
+  contractType       String         @default("STANDARD")
+  contractMultiplier Float          @default(1.0)
+  entryDate          DateTime
+  entryPrice         Float
+  quantity           Float
+  entryFees          Float          @default(0)
+  exitDate           DateTime?
+  exitPrice          Float?
+  exitFees           Float          @default(0)
+  stopLoss           Float?
+  takeProfit         Float?
+  riskAmount         Float?
+  grossPnL           Float?
+  netPnL             Float?
+  commission         Float          @default(0)
+  swap               Float          @default(0)
+  returnPercent      Float?
+  status             String         @default("OPEN")
+  notes              String?
+  screenshots        String?
+  dataSource         String         @default("manual")
+  tradeHash          String?
+  isDuplicate        Boolean        @default(false)
+  aiSummary          String?
+  journalEntries     JournalEntry[]
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags               TradeTag[]
 
   @@index([userId, entryDate])
   @@index([userId, symbol])
@@ -134,38 +107,34 @@ model Trade {
 }
 
 model JournalEntry {
-  id        String   @id @default(cuid())
-  userId    String
-  tradeId   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  title        String
-  content      String
-  entryType    JournalType @default(GENERAL) // "PRE_TRADE", "DURING_TRADE", "POST_TRADE", "GENERAL", "LESSON"
-  mood         Int?       // 1-5 scale
-  confidence   Int?       // 1-5 scale
-  fear         Int?       // 1-5 scale
-  excitement   Int?       // 1-5 scale
-  
-  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trade Trade? @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  userId     String
+  tradeId    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  title      String
+  content    String
+  entryType  String   @default("GENERAL")
+  mood       Int?
+  confidence Int?
+  excitement Int?
+  fear       Int?
+  trade      Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([userId, entryType])
 }
 
 model Tag {
-  id        String   @id @default(cuid())
-  userId    String
-  createdAt DateTime @default(now())
-
+  id          String     @id @default(cuid())
+  userId      String
+  createdAt   DateTime   @default(now())
   name        String
-  color       String   @default("#3B82F6")
+  color       String     @default("#3B82F6")
   description String?
-
-  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trades TradeTag[]
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades      TradeTag[]
 
   @@unique([userId, name])
 }
@@ -173,153 +142,95 @@ model Tag {
 model TradeTag {
   tradeId String
   tagId   String
-
-  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
-  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  trade   Trade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
 
   @@id([tradeId, tagId])
 }
 
 model TradingGoal {
-  id        String   @id @default(cuid())
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  title          String
-  description    String?
-  targetValue    Float?
-  currentValue   Float     @default(0)
-  targetDate     DateTime?
-  goalType       GoalType  // "PROFIT_TARGET", "WIN_RATE", "MAX_DRAWDOWN", "TRADE_COUNT", "CUSTOM"
-  status         GoalStatus @default(ACTIVE) // "ACTIVE", "COMPLETED", "PAUSED", "CANCELLED"
-  isCompleted    Boolean   @default(false)
-  completedAt    DateTime?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  userId       String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  title        String
+  description  String?
+  targetValue  Float?
+  currentValue Float     @default(0)
+  targetDate   DateTime?
+  goalType     String
+  status       String    @default("ACTIVE")
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
 }
 
-enum TradeType {
-  LONG
-  SHORT
-}
-
-enum TradeStatus {
-  OPEN
-  CLOSED
-  CANCELLED
-}
-
-enum JournalType {
-  PRE_TRADE
-  DURING_TRADE
-  POST_TRADE
-  GENERAL
-  LESSON
-}
-
-enum GoalType {
-  PROFIT_TARGET
-  WIN_RATE
-  MAX_DRAWDOWN
-  TRADE_COUNT
-  CUSTOM
-}
-
-enum GoalStatus {
-  ACTIVE
-  COMPLETED
-  PAUSED
-  CANCELLED
-}
-
 model ImportJob {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   filename      String
-  status        ImportStatus @default(PENDING)
-  totalRows     Int      @default(0)
-  processedRows Int      @default(0)
-  errors        String?  // JSON array of errors
-  createdAt     DateTime @default(now())
+  status        String    @default("PENDING")
+  totalRows     Int       @default(0)
+  processedRows Int       @default(0)
+  errors        String?
+  createdAt     DateTime  @default(now())
   completedAt   DateTime?
-  
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, createdAt])
 }
 
 model BrokerConnection {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  brokerName    String   // 'tradovate', 'robinhood', etc.
-  apiKey        String   // encrypted
-  accountType   String?  // 'demo' or 'live' for Tradovate
-  isActive      Boolean  @default(true)
+  brokerName    String
+  apiKey        String
+  accountType   String?
+  isActive      Boolean   @default(true)
   lastSync      DateTime?
-  syncFrequency String   @default("manual") // 'manual', 'hourly', 'daily'
-  settings      String?  // JSON settings
-  createdAt     DateTime @default(now())
-  
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncFrequency String    @default("manual")
+  settings      String?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   syncLogs      SyncLog[]
-  
+
   @@index([userId, brokerName])
 }
 
 model SyncLog {
-  id                  String   @id @default(cuid())
-  userId              String
-  brokerConnectionId  String
-  status              SyncStatus @default(SUCCESS)
-  tradesImported      Int      @default(0)
-  errors              String?  // JSON array of errors
-  syncedAt            DateTime @default(now())
-  
-  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brokerConnection    BrokerConnection @relation(fields: [brokerConnectionId], references: [id], onDelete: Cascade)
-  
+  id                 String           @id @default(cuid())
+  userId             String
+  brokerConnectionId String
+  status             String           @default("SUCCESS")
+  tradesImported     Int              @default(0)
+  errors             String?
+  syncedAt           DateTime         @default(now())
+  brokerConnection   BrokerConnection @relation(fields: [brokerConnectionId], references: [id], onDelete: Cascade)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId, syncedAt])
 }
 
-enum ImportStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-enum SyncStatus {
-  SUCCESS
-  ERROR
-  PARTIAL
-}
-
 model CalendarEntry {
-  id          String   @id @default(cuid())
-  userId      String
-  date        DateTime // The calendar date (YYYY-MM-DD)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  userId        String
+  date          DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  notes         String?
+  mood          Int?
+  images        String?
+  dailyPnL      Float?
+  tradesCount   Int      @default(0)
+  winningTrades Int      @default(0)
+  losingTrades  Int      @default(0)
+  winRate       Float?
+  aiSummary     String?  // AI-generated daily trading summary
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Diary and notes
-  notes       String?  // Rich text diary content
-  mood        Int?     // 1-5 scale mood for the day
-  images      String?  // JSON array of image URLs/paths
-  
-  // Daily trading summary (calculated fields)
-  dailyPnL    Float?   // Total P&L for the day
-  tradesCount Int      @default(0)
-  winningTrades Int    @default(0)
-  losingTrades  Int    @default(0)
-  winRate     Float?   // Win rate for the day
-  
-  // Relationships
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@unique([userId, date]) // One entry per user per day
+  @@unique([userId, date])
   @@index([userId, date])
-  @@index([date]) // For efficient date range queries
+  @@index([date])
 }

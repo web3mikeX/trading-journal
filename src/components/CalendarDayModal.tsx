@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useDropzone } from "react-dropzone"
 import { 
   X, 
@@ -16,11 +16,14 @@ import {
   Save,
   Loader2,
   BarChart3,
-  DollarSign
+  DollarSign,
+  Brain,
+  Sparkles
 } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { formatCurrency, formatDate } from "@/lib/utils"
+import { useApiThrottle } from "@/hooks/useApiThrottle"
 
 interface Trade {
   id: string
@@ -46,6 +49,7 @@ interface CalendarDayData {
   notes?: string
   images?: string[]
   trades?: Trade[]
+  aiSummary?: string
 }
 
 interface CalendarDayModalProps {
@@ -61,7 +65,7 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   
-  const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'diary' | 'images'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'diary' | 'images' | 'ai-summary'>('overview')
   const [dayData, setDayData] = useState<CalendarDayData | null>(initialData || null)
   const [notes, setNotes] = useState('')
   const [mood, setMood] = useState<number | undefined>(undefined)
@@ -72,42 +76,92 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   const [saveError, setSaveError] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [generatingAISummary, setGeneratingAISummary] = useState(false)
+  const [aiSummary, setAISummary] = useState<string | null>(null)
+  
+  const { shouldThrottle, trackApiCall } = useApiThrottle()
   
   const dateObj = new Date(date)
   const isToday = date === new Date().toISOString().split('T')[0]
   
-  // Load day data when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        // Set initial data immediately for quick display
-        setDayData(initialData)
-        setNotes(initialData.notes || '')
-        setMood(initialData.mood)
-        setImages(initialData.images || [])
-      }
-      // Always load full data from API to ensure we have complete information
-      loadDayData()
-    }
-  }, [isOpen, date, initialData])
+  // Track if we've already loaded data for this date to prevent infinite loops
+  const loadedDateRef = useRef<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   
-  const loadDayData = async () => {
+  // Memoize the loadDayData function to prevent unnecessary re-renders
+  const loadDayData = useCallback(async () => {
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController()
+    
     setLoading(true)
     try {
-      const response = await fetch(`/api/calendar/${date}?userId=${userId}`)
+      // Ensure we have a clean date format (YYYY-MM-DD)
+      const cleanDate = new Date(date).toISOString().split('T')[0]
+      const apiUrl = `/api/calendar/${cleanDate}?userId=${userId}`
+      
+      // Check if we should throttle this request
+      if (shouldThrottle(apiUrl)) {
+        console.warn('API request throttled for calendar day:', cleanDate)
+        return
+      }
+      
+      trackApiCall(apiUrl)
+      const response = await fetch(apiUrl, {
+        signal: abortControllerRef.current.signal
+      })
+      
       if (response.ok) {
         const data = await response.json()
         setDayData(data)
         setNotes(data.notes || '')
         setMood(data.mood)
         setImages(data.images || [])
+        setAISummary(data.aiSummary || null)
+        loadedDateRef.current = cleanDate
       }
     } catch (error) {
-      console.error('Failed to load day data:', error)
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('Failed to load day data:', error)
+      }
     } finally {
       setLoading(false)
     }
-  }
+  }, [date, userId])
+  
+  // Load day data when modal opens or date changes
+  useEffect(() => {
+    if (isOpen && date) {
+      const cleanDate = new Date(date).toISOString().split('T')[0]
+      
+      // Only load if we haven't already loaded this date
+      if (loadedDateRef.current !== cleanDate) {
+        if (initialData) {
+          // Set initial data immediately for quick display
+          setDayData(initialData)
+          setNotes(initialData.notes || '')
+          setMood(initialData.mood)
+          setImages(initialData.images || [])
+          setAISummary(initialData.aiSummary || null)
+        }
+        // Always load full data from API to ensure we have complete information
+        loadDayData()
+      }
+    }
+    
+    // Cleanup function to cancel requests when component unmounts or dependencies change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [isOpen, date, loadDayData]) // Removed initialData from dependencies
+  
+  // loadDayData function moved above and memoized with useCallback
   
   const saveDayData = async () => {
     setSaving(true)
@@ -115,19 +169,29 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
     setSaveError(null)
     
     try {
-      const response = await fetch(`/api/calendar/${date}`, {
+      const requestData = {
+        userId,
+        notes: notes.trim() || undefined,
+        mood: mood && mood >= 1 && mood <= 5 ? mood : undefined,
+        images: images.length > 0 ? images : undefined
+      }
+      
+      console.log('Sending calendar data:', requestData)
+      
+      // Ensure we have a clean date format (YYYY-MM-DD)
+      const cleanDate = new Date(date).toISOString().split('T')[0]
+      console.log('Using date:', cleanDate)
+      
+      const response = await fetch(`/api/calendar/${cleanDate}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          notes: notes.trim() || undefined,
-          mood,
-          images: images.length > 0 ? images : undefined
-        })
+        body: JSON.stringify(requestData)
       })
       
       if (!response.ok) {
-        throw new Error(`Save failed: ${response.status} ${response.statusText}`)
+        const errorData = await response.json().catch(() => null)
+        console.error('API Error Response:', errorData)
+        throw new Error(`Save failed: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`)
       }
       
       const updatedData = await response.json()
@@ -225,11 +289,51 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
     )
   }
   
+  const generateAISummary = async () => {
+    if (!dayData?.tradesCount || generatingAISummary) return
+    
+    setGeneratingAISummary(true)
+    
+    try {
+      const response = await fetch('/api/calendar/ai-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date: date
+        })
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setAISummary(data.summary)
+        
+        // Update dayData to include the new AI summary
+        setDayData(prev => prev ? { ...prev, aiSummary: data.summary } : null)
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('Failed to generate AI summary:', response.status, errorData)
+        if (response.status === 401) {
+          setAISummary('Authentication error. Please refresh the page and try again.')
+        } else {
+          setAISummary('Failed to generate AI summary. Please try again.')
+        }
+      }
+    } catch (error) {
+      console.error('Error generating AI summary:', error)
+      setAISummary('Network error. Please check your connection and try again.')
+    } finally {
+      setGeneratingAISummary(false)
+    }
+  }
+  
   const tabs = [
     { id: 'overview', label: 'Overview', icon: BarChart3 },
     { id: 'trades', label: 'Trades', icon: DollarSign },
     { id: 'diary', label: 'Diary', icon: Heart },
     { id: 'images', label: 'Images', icon: ImageIcon },
+    { id: 'ai-summary', label: 'AI Summary', icon: Brain },
   ]
 
   return (
@@ -266,7 +370,7 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                         </span>
                         {dayData.winRate !== undefined && (
                           <span className={`text-sm ${themeClasses.textSecondary}`}>
-                            {dayData.winRate.toFixed(1)}% win rate
+                            {(dayData.winRate ?? 0).toFixed(1)}% win rate
                           </span>
                         )}
                       </div>
@@ -383,10 +487,10 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                                 <div>
                                   <div className={`text-sm ${themeClasses.textSecondary}`}>Win Rate</div>
                                   <div className={`text-xl font-bold ${themeClasses.text}`}>
-                                    {dayData.winRate.toFixed(1)}%
+                                    {(dayData.winRate ?? 0).toFixed(1)}%
                                   </div>
                                 </div>
-                                <Trophy className={`w-8 h-8 ${dayData.winRate >= 50 ? 'text-green-500' : 'text-red-500'}`} />
+                                <Trophy className={`w-8 h-8 ${(dayData.winRate ?? 0) >= 50 ? 'text-green-500' : 'text-red-500'}`} />
                               </div>
                             </div>
                           </div>
@@ -577,6 +681,95 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* AI Summary Tab */}
+                  {activeTab === 'ai-summary' && (
+                    <div key="ai-summary-tab" className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className={`text-lg font-semibold ${themeClasses.text} flex items-center gap-2`}>
+                          <Brain className="w-5 h-5 text-blue-500" />
+                          AI Daily Summary
+                        </h3>
+                        
+                        {dayData?.tradesCount && (
+                          <button
+                            onClick={generateAISummary}
+                            disabled={generatingAISummary}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                              generatingAISummary 
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                            }`}
+                          >
+                            {generatingAISummary ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                {aiSummary || dayData?.aiSummary ? 'Regenerate' : 'Generate'} Summary
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className={`min-h-[200px] p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+                        {generatingAISummary ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="text-center">
+                              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+                              <p className={`${themeClasses.textSecondary}`}>
+                                Analyzing your trading day...
+                              </p>
+                            </div>
+                          </div>
+                        ) : (aiSummary || dayData?.aiSummary) ? (
+                          <div className="prose prose-sm max-w-none">
+                            <div className={`${themeClasses.text} leading-relaxed`}>
+                              {aiSummary || dayData?.aiSummary}
+                            </div>
+                            
+                            <div className={`mt-4 pt-4 border-t ${themeClasses.border}`}>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <Brain className="w-3 h-3" />
+                                Generated by AI • {new Date().toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                        ) : dayData?.tradesCount ? (
+                          <div className="text-center py-8">
+                            <Brain className={`w-16 h-16 mx-auto mb-4 ${themeClasses.textSecondary}`} />
+                            <p className={`${themeClasses.text} mb-2`}>
+                              Generate an AI summary of your trading day
+                            </p>
+                            <p className={`${themeClasses.textSecondary} text-sm mb-4`}>
+                              Get insights on your performance, patterns, and key takeaways
+                            </p>
+                            <button
+                              onClick={generateAISummary}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors mx-auto"
+                            >
+                              <Sparkles className="w-4 h-4" />
+                              Generate Summary
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <Calendar className={`w-16 h-16 mx-auto mb-4 ${themeClasses.textSecondary}`} />
+                            <p className={`${themeClasses.text} mb-2`}>
+                              No trading activity
+                            </p>
+                            <p className={`${themeClasses.textSecondary} text-sm`}>
+                              AI summaries are generated for days with trades
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

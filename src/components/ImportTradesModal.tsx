@@ -1087,7 +1087,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                               <td className={`py-3 px-4 ${themeClasses.text} text-sm`}>
                                 {trade.exitPrice ? (
                                   <div className="space-y-1">
-                                    <div className="font-medium">${trade.exitPrice.toFixed(2)}</div>
+                                    <div className="font-medium">${(trade.exitPrice ?? 0).toFixed(2)}</div>
                                     <div className={`text-xs ${themeClasses.textSecondary}`}>
                                       {formatDate(trade.exitDate || '')}
                                     </div>
@@ -1101,15 +1101,15 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                                 {trade.netPnL !== undefined ? (
                                   <div className="space-y-1">
                                     <div className={`font-medium ${
-                                      trade.netPnL >= 0 ? 'text-green-600' : 'text-red-600'
+                                      (trade.netPnL ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
                                     }`}>
-                                      {trade.netPnL >= 0 ? '+' : ''}${trade.netPnL.toFixed(2)}
+                                      {(trade.netPnL ?? 0) >= 0 ? '+' : ''}${(trade.netPnL ?? 0).toFixed(2)}
                                     </div>
                                     {trade.returnPercent !== undefined && (
                                       <div className={`text-xs ${
-                                        trade.returnPercent >= 0 ? 'text-green-600' : 'text-red-600'
+                                        (trade.returnPercent ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'
                                       }`}>
-                                        {trade.returnPercent >= 0 ? '+' : ''}{trade.returnPercent.toFixed(1)}%
+                                        {(trade.returnPercent ?? 0) >= 0 ? '+' : ''}{(trade.returnPercent ?? 0).toFixed(1)}%
                                       </div>
                                     )}
                                   </div>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="p-8">
+        <h1 class="text-3xl font-bold mb-6">Dashboard API Test</h1>
+        
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">User Authentication</h2>
+            <button id="testAuth" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+                Test Authentication
+            </button>
+            <div id="authResult" class="mt-4 p-4 bg-gray-800 rounded"></div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Stats API Test</h2>
+            <button id="testStats" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+                Test Stats API
+            </button>
+            <div id="statsResult" class="mt-4 p-4 bg-gray-800 rounded"></div>
+        </div>
+
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Trades API Test</h2>
+            <button id="testTrades" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">
+                Test Trades API
+            </button>
+            <div id="tradesResult" class="mt-4 p-4 bg-gray-800 rounded"></div>
+        </div>
+    </div>
+
+    <script>
+        const userId = 'cmcwu8b5m0001m17ilm0triy8';
+
+        document.getElementById('testAuth').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('authResult');
+            resultDiv.innerHTML = 'Testing authentication...';
+            
+            try {
+                const response = await fetch('/api/init-demo', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="text-green-400">✓ Authentication OK</div>
+                        <div class="text-sm mt-2">User: ${data.user.name} (${data.user.email})</div>
+                        <div class="text-sm">ID: ${data.user.id}</div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="text-red-400">✗ Authentication failed: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="text-red-400">✗ Error: ${error.message}</div>`;
+            }
+        });
+
+        document.getElementById('testStats').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('statsResult');
+            resultDiv.innerHTML = 'Testing stats API...';
+            
+            try {
+                const response = await fetch(`/api/stats?userId=${userId}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="text-green-400">✓ Stats API OK</div>
+                        <div class="text-sm mt-2">Total P&L: $${data.totalPnL}</div>
+                        <div class="text-sm">Win Rate: ${data.winRate}%</div>
+                        <div class="text-sm">Total Trades: ${data.totalTrades}</div>
+                        <div class="text-sm">Recent Trades: ${data.recentTrades.length}</div>
+                        <div class="text-sm">Current Week: ${data.weekMetadata.weekLabel}</div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="text-red-400">✗ Stats API failed: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="text-red-400">✗ Error: ${error.message}</div>`;
+            }
+        });
+
+        document.getElementById('testTrades').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('tradesResult');
+            resultDiv.innerHTML = 'Testing trades API...';
+            
+            try {
+                const response = await fetch(`/api/trades?userId=${userId}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="text-green-400">✓ Trades API OK</div>
+                        <div class="text-sm mt-2">Found ${data.length} trades</div>
+                        ${data.slice(0, 3).map(trade => `
+                            <div class="text-xs mt-1">${trade.symbol} ${trade.side} ${trade.quantity}@${trade.entryPrice} = $${trade.netPnL}</div>
+                        `).join('')}
+                        ${data.length > 3 ? `<div class="text-xs mt-1">... and ${data.length - 3} more</div>` : ''}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="text-red-400">✗ Trades API failed: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="text-red-400">✗ Error: ${error.message}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trading Journal Connection Test</title>
+</head>
+<body>
+    <h1>Trading Journal Connection Test</h1>
+    <p>If you can see this file, try these URLs to access your trading journal:</p>
+    
+    <h2>Try these URLs in order:</h2>
+    <ol>
+        <li><a href="http://localhost:3001/dashboard">http://localhost:3001/dashboard</a></li>
+        <li><a href="http://127.0.0.1:3001/dashboard">http://127.0.0.1:3001/dashboard</a></li>
+        <li><a href="http://10.255.255.254:3001/dashboard">http://10.255.255.254:3001/dashboard</a></li>
+        <li><a href="http://172.24.41.211:3001/dashboard">http://172.24.41.211:3001/dashboard</a></li>
+    </ol>
+    
+    <h2>WSL Networking Troubleshooting:</h2>
+    <p>If none of the above work, try these steps:</p>
+    
+    <h3>Option 1: PowerShell Port Forwarding (Run as Administrator)</h3>
+    <code>netsh interface portproxy add v4tov4 listenport=3001 listenaddress=0.0.0.0 connectport=3001 connectaddress=172.24.41.211</code>
+    
+    <h3>Option 2: Windows Firewall</h3>
+    <p>Add an inbound rule for port 3001 in Windows Firewall</p>
+    
+    <h3>Option 3: WSL IP Address</h3>
+    <p>In WSL, run: <code>ip addr show eth0</code> to get current IP</p>
+    
+    <h3>Your Navigation Should Include:</h3>
+    <ul>
+        <li><strong>Dashboard</strong> - Main overview</li>
+        <li><strong>Trades</strong> - Import trades here</li>
+        <li><strong>Analytics</strong> - Performance analysis</li>
+        <li><strong>Journal</strong> - Trading journal entries</li>
+        <li><strong>Settings</strong> - Configuration</li>
+        <li><strong>Sign out</strong> - Logout</li>
+    </ul>
+    
+    <p>The server is running successfully based on the logs. The issue is just Windows-WSL networking.</p>
+</body>
+</html>

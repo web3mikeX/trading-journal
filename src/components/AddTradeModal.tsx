@@ -79,7 +79,50 @@ export default function AddTradeModal({ isOpen, onClose, onSubmit }: AddTradeMod
         exitDate: data.exitDate ? new Date(data.exitDate) : undefined,
       }
 
-      await onSubmit(tradeData)
+      // Generate AI summary if we have sufficient data
+      let aiSummary = null
+      if (data.symbol && data.side && data.quantity && data.entryPrice) {
+        try {
+          const summaryResponse = await fetch('/api/ai/summary', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              symbol: data.symbol,
+              side: data.side,
+              quantity: data.quantity,
+              entryPrice: data.entryPrice,
+              exitPrice: data.exitPrice,
+              notes: data.notes,
+              status: data.exitDate ? 'CLOSED' : 'OPEN',
+              strategy: data.strategy,
+              setup: data.setup,
+              grossPnL: data.exitPrice ? 
+                (data.side === 'LONG' ? 
+                  (data.exitPrice - data.entryPrice) * data.quantity :
+                  (data.entryPrice - data.exitPrice) * data.quantity
+                ) : undefined
+            })
+          })
+
+          if (summaryResponse.ok) {
+            const summaryData = await summaryResponse.json()
+            aiSummary = summaryData.summary
+          }
+        } catch (summaryError) {
+          console.log('AI summary generation failed:', summaryError)
+          // Continue without summary - not critical
+        }
+      }
+
+      // Add AI summary to trade data
+      const finalTradeData = {
+        ...tradeData,
+        aiSummary
+      }
+
+      await onSubmit(finalTradeData)
       reset()
       onClose()
     } catch (error) {

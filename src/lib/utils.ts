@@ -16,27 +16,8 @@ export function formatPercentage(value: number, decimals = 2) {
   return `${value.toFixed(decimals)}%`
 }
 
-export function calculatePnL(
-  entryPrice: number, 
-  exitPrice: number, 
-  quantity: number, 
-  side: "LONG" | "SHORT", 
-  multiplier: number = 1.0
-) {
-  const pointsDifference = side === "LONG" 
-    ? (exitPrice - entryPrice)
-    : (entryPrice - exitPrice)
-    
-  return pointsDifference * quantity * multiplier
-}
-
-export function calculateReturnPercentage(entryPrice: number, exitPrice: number, side: "LONG" | "SHORT") {
-  if (side === "LONG") {
-    return ((exitPrice - entryPrice) / entryPrice) * 100
-  } else {
-    return ((entryPrice - exitPrice) / entryPrice) * 100
-  }
-}
+// Note: P&L calculations are handled in API routes using contract multipliers
+// and comprehensive fee calculations. See /api/trades/route.ts for implementation.
 
 export function formatDate(date: Date | string) {
   return new Intl.DateTimeFormat("en-US", {

@@ -28,7 +28,19 @@
       "Bash(npx kill-port:*)",
       "Bash(ss:*)",
       "Bash(NODE_ENV=development npm run dev)",
-      "Bash(FORCE_COLOR=1 npm run dev)"
+      "Bash(FORCE_COLOR=1 npm run dev)",
+      "Bash(npx next lint:*)",
+      "Bash(ESLINT_NO_DEV_ERRORS=true npm run dev)",
+      "Bash(touch:*)",
+      "Bash(grep:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(npx tsc:*)",
+      "Bash(chmod:*)",
+      "Bash(/mnt/c/Users/nftmi/OneDrive/Desktop/Tradedeta/trading-journal/WORKING-START.sh:*)",
+      "Bash(hostname:*)",
+      "Bash(node:*)",
+      "Bash(PORT=8080 npm run dev)"
     ],
     "deny": []
   }

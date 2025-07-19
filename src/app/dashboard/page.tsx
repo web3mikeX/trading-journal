@@ -69,8 +69,17 @@ function DashboardContent() {
   }, [])
 
   const handleTradeClick = useCallback((tradeId: string) => {
-    setSelectedTradeId(tradeId)
-    setIsTradeDetailModalOpen(true)
+    try {
+      console.log('Dashboard: Handling trade click for ID:', tradeId)
+      if (!tradeId) {
+        console.error('Dashboard: No tradeId provided')
+        return
+      }
+      setSelectedTradeId(tradeId)
+      setIsTradeDetailModalOpen(true)
+    } catch (error) {
+      console.error('Dashboard: Error handling trade click:', error)
+    }
   }, [])
 
   const closeTradeDetailModal = useCallback(() => {
@@ -207,20 +216,20 @@ function DashboardContent() {
               />
               <MetricCard
                 title="Win Rate"
-                value={`${stats.winRate.toFixed(1)}%`}
+                value={`${(stats.winRate ?? 0).toFixed(1)}%`}
                 icon={TargetIcon}
-                valueColor={stats.winRate >= 50 ? "success" : "warning"}
+                valueColor={(stats.winRate ?? 0) >= 50 ? "success" : "warning"}
               />
               <MetricCard
                 title="Total Trades"
-                value={stats.totalTrades.toString()}
+                value={(stats.totalTrades ?? 0).toString()}
                 icon={BarChart3Icon}
               />
               <MetricCard
                 title="Profit Factor"
-                value={stats.profitFactor.toFixed(2)}
+                value={(stats.profitFactor ?? 0).toFixed(2)}
                 icon={TrophyIcon}
-                valueColor={stats.profitFactor >= 1 ? "success" : "danger"}
+                valueColor={(stats.profitFactor ?? 0) >= 1 ? "success" : "danger"}
               />
             </div>
           </div>
@@ -250,11 +259,13 @@ function DashboardContent() {
                 <PerformanceChart data={stats.performanceData} />
               </div>
               <div className="h-[430px]">
-                <RecentTrades 
-                  trades={stats.recentTrades} 
-                  weekMetadata={stats.weekMetadata}
-                  onTradeClick={handleTradeClick}
-                />
+                <ErrorBoundary>
+                  <RecentTrades 
+                    trades={stats.recentTrades} 
+                    weekMetadata={stats.weekMetadata}
+                    onTradeClick={handleTradeClick}
+                  />
+                </ErrorBoundary>
               </div>
             </div>
           </div>
@@ -278,9 +289,9 @@ function DashboardContent() {
               />
               <MetricCard
                 title="Monthly Return"
-                value={`${stats.currentMonthReturn.toFixed(1)}%`}
+                value={`${(stats.currentMonthReturn ?? 0).toFixed(1)}%`}
                 icon={CalendarIcon}
-                valueColor={stats.currentMonthReturn >= 0 ? "success" : "danger"}
+                valueColor={(stats.currentMonthReturn ?? 0) >= 0 ? "success" : "danger"}
               />
             </div>
           </div>

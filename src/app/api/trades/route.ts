@@ -24,6 +24,7 @@ const TradeSchema = z.object({
   commission: z.number().default(0),
   swap: z.number().default(0),
   notes: z.string().optional(),
+  aiSummary: z.string().optional(),
   dataSource: z.string().default('manual'),
 })
 
@@ -180,6 +181,7 @@ export async function POST(request: NextRequest) {
         commission: validatedData.commission,
         swap: validatedData.swap,
         notes: validatedData.notes,
+        aiSummary: validatedData.aiSummary,
         dataSource: validatedData.dataSource,
         grossPnL: pnlData.grossPnL,
         netPnL: pnlData.netPnL,

@@ -70,11 +70,11 @@ export default function MetricCard({
             <div className="flex items-center space-x-1">
               <span className={cn(
                 "text-xs font-medium",
-                change >= 0 
+                (change ?? 0) >= 0 
                   ? "text-green-600 dark:text-green-400" 
                   : "text-red-600 dark:text-red-400"
               )}>
-                {change >= 0 ? "+" : ""}{change.toFixed(2)}%
+                {(change ?? 0) >= 0 ? "+" : ""}{(change ?? 0).toFixed(2)}%
               </span>
               {changeLabel && (
                 <span className="text-xs text-gray-500 dark:text-gray-400">

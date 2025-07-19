@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Auth State</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+        // Simple test to check what's happening
+        fetch('/api/init-demo', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Demo init response:', data);
+                
+                // Check useAuth response
+                const authState = {
+                    user: {
+                        id: "cmcwu8b5m0001m17ilm0triy8",
+                        email: "degenbitkid@gmail.com", 
+                        name: "mike",
+                        image: null,
+                    },
+                    isAuthenticated: true,
+                    isLoading: false,
+                };
+                
+                console.log('Expected auth state:', authState);
+                document.body.innerHTML = '<pre>' + JSON.stringify(authState, null, 2) + '</pre>';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.body.innerHTML = '<pre>Error: ' + error.message + '</pre>';
+            });
+    </script>
+</body>
+</html>

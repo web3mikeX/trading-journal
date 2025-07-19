@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { motion } from "framer-motion"
 import { 
   ChevronLeftIcon, 
@@ -14,6 +14,7 @@ import {
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { formatCurrency } from "@/lib/utils"
+import { useApiThrottle } from "@/hooks/useApiThrottle"
 
 interface CalendarDayData {
   date: string
@@ -50,35 +51,82 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
   const [loading, setLoading] = useState(false)
   const [monthlyPnL, setMonthlyPnL] = useState(0)
   
+  const { shouldThrottle, trackApiCall } = useApiThrottle()
+  
   const currentMonth = currentDate.getMonth()
   const currentYear = currentDate.getFullYear()
+  
+  // Reset loaded month when date changes to allow fresh data load
+  useEffect(() => {
+    loadedMonthRef.current = null
+  }, [currentMonth, currentYear])
   const today = new Date()
   const todayString = today.toISOString().split('T')[0]
   
-  // Load calendar data for the current month
-  useEffect(() => {
+  // Track loaded month to prevent duplicate requests
+  const loadedMonthRef = useRef<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
+  // Memoize the loadCalendarData function
+  const loadCalendarData = useCallback(async () => {
     if (!userId) return
     
-    const loadCalendarData = async () => {
-      setLoading(true)
-      try {
-        const yearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
-        const response = await fetch(`/api/calendar/month/${yearMonth}?userId=${userId}`)
-        
-        if (response.ok) {
-          const data = await response.json()
-          setCalendarData(data.calendarData || {})
-          setMonthlyPnL(data.monthlyPnL || 0)
-        }
-      } catch (error) {
-        console.error('Failed to fetch calendar data:', error)
-      } finally {
-        setLoading(false)
-      }
+    const yearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
+    
+    // Don't reload if we already have this month's data
+    if (loadedMonthRef.current === yearMonth) {
+      return
     }
     
-    loadCalendarData()
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController()
+    
+    setLoading(true)
+    try {
+      const apiUrl = `/api/calendar/month/${yearMonth}?userId=${userId}`
+      
+      // Check if we should throttle this request
+      if (shouldThrottle(apiUrl)) {
+        console.warn('API request throttled for calendar month:', yearMonth)
+        return
+      }
+      
+      trackApiCall(apiUrl)
+      const response = await fetch(apiUrl, {
+        signal: abortControllerRef.current.signal
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setCalendarData(data.calendarData || {})
+        setMonthlyPnL(data.monthlyPnL || 0)
+        loadedMonthRef.current = yearMonth
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error('Failed to fetch calendar data:', error)
+      }
+    } finally {
+      setLoading(false)
+    }
   }, [userId, currentMonth, currentYear])
+  
+  // Load calendar data for the current month
+  useEffect(() => {
+    loadCalendarData()
+    
+    // Cleanup function to cancel requests
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [loadCalendarData])
   
   // Get days in month and start day
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()

@@ -6,7 +6,7 @@ import { X, Save } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { useTrades } from "@/hooks/useTrades"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/hooks/useAuth"
 
 interface NewEntryModalProps {
   isOpen: boolean
@@ -26,8 +26,8 @@ interface NewEntryModalProps {
 export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModalProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  const { data: session } = useSession()
-  const { trades } = useTrades(session?.user?.id || '')
+  const { user } = useAuth()
+  const { trades } = useTrades(user?.id || '')
   
   const [title, setTitle] = useState("")
   const [content, setContent] = useState("")
