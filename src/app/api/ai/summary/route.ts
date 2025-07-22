@@ -25,11 +25,19 @@ export async function POST(request: NextRequest) {
 
     // Validate environment variables
     const kimiApiKey = process.env.KIMI_API_KEY
-    const kimiApiUrl = process.env.KIMI_API_URL || 'https://api.kimi.ai/v1/chat/completions'
+    const kimiApiUrl = process.env.KIMI_API_URL || 'https://api.moonshot.cn/v1/chat/completions'
+    const aiServiceEnabled = process.env.AI_SERVICE_ENABLED === 'true'
     
-    if (!kimiApiKey) {
-      console.error('KIMI_API_KEY not configured')
-      return NextResponse.json({ error: 'AI service not configured' }, { status: 500 })
+    if (!aiServiceEnabled || !kimiApiKey) {
+      console.log('AI service not configured, generating local summary')
+      // Generate a simple local summary
+      const tradeData: SummaryRequest = await request.json()
+      const localSummary = generateLocalSummary(tradeData)
+      return NextResponse.json({
+        summary: localSummary,
+        tokensUsed: 0,
+        source: 'local'
+      })
     }
 
     // Parse request body
@@ -130,4 +138,20 @@ function buildSummaryPrompt(trade: SummaryRequest): string {
   prompt += '\n\nCreate a 10-word summary focusing on the key outcome and insight.'
 
   return prompt
+}
+
+function generateLocalSummary(trade: SummaryRequest): string {
+  const { symbol, side, quantity, entryPrice, exitPrice, status, grossPnL } = trade
+  
+  // Generate a concise local summary
+  let summary = `${side} ${quantity} ${symbol} @ $${entryPrice}`
+  
+  if (status === 'CLOSED' && exitPrice) {
+    const outcome = grossPnL && grossPnL > 0 ? 'profit' : 'loss'
+    summary += ` → $${exitPrice} (${outcome})`
+  } else if (status === 'OPEN') {
+    summary += ' (open position)'
+  }
+  
+  return summary.slice(0, 60) // Keep it under 60 characters
 }

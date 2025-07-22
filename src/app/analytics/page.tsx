@@ -6,6 +6,7 @@ import { TrendingUpIcon, BarChart3Icon, DollarSignIcon, CalendarIcon, TrendingDo
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
 import Header from "@/components/Header"
 import ExportButton from "@/components/ExportButton"
+import HabitAnalysis from "@/components/HabitAnalysis"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { useAuth } from "@/hooks/useAuth"
@@ -337,7 +338,7 @@ export default function Analytics() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 1.2 }}
-            className={`${themeClasses.surface} rounded-xl p-8`}
+            className={`${themeClasses.surface} rounded-xl p-8 mb-8`}
           >
             <h2 className={`text-xl font-semibold ${themeClasses.text} mb-6`}>Monthly P&L Performance</h2>
             {monthlyPnLData.length > 0 ? (
@@ -370,6 +371,15 @@ export default function Analytics() {
                 <p className={themeClasses.textSecondary}>No monthly data available</p>
               </div>
             )}
+          </motion.div>
+
+          {/* AI Habit Analysis Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 1.4 }}
+          >
+            <HabitAnalysis />
           </motion.div>
         </motion.div>
       </div>

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import ClientAuthProvider from "@/components/ClientAuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/toast";
+import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "DetaWise",
@@ -19,9 +19,9 @@ export default function RootLayout({
       <body className="antialiased" suppressHydrationWarning={true}>
         <ThemeProvider>
           <ToastProvider>
-            <ClientAuthProvider>
+            <Providers>
               {children}
-            </ClientAuthProvider>
+            </Providers>
           </ToastProvider>
         </ThemeProvider>
       </body>

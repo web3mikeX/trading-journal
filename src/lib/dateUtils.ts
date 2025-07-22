@@ -1,116 +1,137 @@
 /**
- * Date utility functions for week-based trading analysis
- * Week is defined as Sunday (0) to Saturday (6)
+ * Date utility functions for trading analysis
  */
 
 /**
- * Get the start and end dates for the current trading week (Sunday-Saturday)
+ * Get the start and end dates for today (00:00:00 to 23:59:59)
  */
-export function getCurrentWeekRange(): { start: Date; end: Date } {
+export function getTodayRange(): { start: Date; end: Date } {
   const now = new Date()
-  return getWeekRange(now)
-}
-
-/**
- * Get the start and end dates for the week containing the given date
- * @param date - The date to get the week range for
- */
-export function getWeekRange(date: Date): { start: Date; end: Date } {
-  const dayOfWeek = date.getDay() // 0 = Sunday, 6 = Saturday
-  
-  // Calculate start of week (Sunday)
-  const start = new Date(date)
-  start.setDate(date.getDate() - dayOfWeek)
+  const start = new Date(now)
   start.setHours(0, 0, 0, 0)
   
-  // Calculate end of week (Saturday)
-  const end = new Date(date)
-  end.setDate(date.getDate() + (6 - dayOfWeek))
+  const end = new Date(now)
   end.setHours(23, 59, 59, 999)
   
   return { start, end }
 }
 
 /**
- * Format a week range for display
- * @param start - Start date of the week
- * @param end - End date of the week
+ * Get the start and end dates for yesterday (00:00:00 to 23:59:59)
  */
-export function formatWeekRange(start: Date, end: Date): string {
-  const startMonth = start.toLocaleDateString('en-US', { month: 'short' })
-  const endMonth = end.toLocaleDateString('en-US', { month: 'short' })
+export function getYesterdayRange(): { start: Date; end: Date } {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
   
-  if (startMonth === endMonth) {
-    // Same month: "July 6-12"
-    return `${startMonth} ${start.getDate()}-${end.getDate()}`
-  } else {
-    // Different months: "June 30 - July 6"
-    return `${startMonth} ${start.getDate()} - ${endMonth} ${end.getDate()}`
+  const start = new Date(yesterday)
+  start.setHours(0, 0, 0, 0)
+  
+  const end = new Date(yesterday)
+  end.setHours(23, 59, 59, 999)
+  
+  return { start, end }
+}
+
+
+/**
+ * Create a custom date range from start and end dates
+ * @param startDate - Start date
+ * @param endDate - End date
+ */
+export function getCustomRange(startDate: Date, endDate: Date): { start: Date; end: Date } {
+  const start = new Date(startDate)
+  start.setHours(0, 0, 0, 0)
+  
+  const end = new Date(endDate)
+  end.setHours(23, 59, 59, 999)
+  
+  return { start, end }
+}
+
+/**
+ * Parse a date option string and return the corresponding date range
+ * @param option - Date option string (e.g., 'today', 'yesterday', or numeric days)
+ */
+export function parseDateOption(option: string): { start: Date; end: Date } | null {
+  switch (option) {
+    case 'today':
+      return getTodayRange()
+    case 'yesterday':
+      return getYesterdayRange()
+    default:
+      // Handle numeric options (backward compatibility)
+      const days = parseInt(option)
+      if (!isNaN(days) && days > 0) {
+        const end = new Date()
+        end.setHours(23, 59, 59, 999)
+        
+        const start = new Date()
+        start.setDate(start.getDate() - days)
+        start.setHours(0, 0, 0, 0)
+        
+        return { start, end }
+      }
+      return null
   }
 }
 
 /**
- * Check if a date falls within the current trading week
- * @param date - The date to check
+ * Format a date range for display in the UI
+ * @param start - Start date
+ * @param end - End date
  */
-export function isInCurrentWeek(date: Date): boolean {
-  const { start, end } = getCurrentWeekRange()
-  return date >= start && date <= end
-}
-
-/**
- * Get the previous trading week range
- */
-export function getPreviousWeekRange(): { start: Date; end: Date } {
-  const lastWeek = new Date()
-  lastWeek.setDate(lastWeek.getDate() - 7)
-  return getWeekRange(lastWeek)
-}
-
-/**
- * Get the next trading week range
- */
-export function getNextWeekRange(): { start: Date; end: Date } {
-  const nextWeek = new Date()
-  nextWeek.setDate(nextWeek.getDate() + 7)
-  return getWeekRange(nextWeek)
-}
-
-/**
- * Get week range for a specific week offset from current week
- * @param weekOffset - Number of weeks to offset (negative for past, positive for future)
- */
-export function getWeekRangeOffset(weekOffset: number): { start: Date; end: Date } {
-  const targetDate = new Date()
-  targetDate.setDate(targetDate.getDate() + (weekOffset * 7))
-  return getWeekRange(targetDate)
-}
-
-/**
- * Filter trades by week range
- * @param trades - Array of trades with entryDate property
- * @param weekStart - Start of the week
- * @param weekEnd - End of the week
- */
-export function filterTradesByWeek<T extends { entryDate: Date }>(
-  trades: T[], 
-  weekStart: Date, 
-  weekEnd: Date
-): T[] {
-  return trades.filter(trade => {
-    const tradeDate = new Date(trade.entryDate)
-    return tradeDate >= weekStart && tradeDate <= weekEnd
+export function formatDateRangeDisplay(start: Date, end: Date): string {
+  const startStr = start.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    year: start.getFullYear() !== end.getFullYear() ? 'numeric' : undefined
   })
+  
+  const endStr = end.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    year: 'numeric'
+  })
+  
+  // Same day
+  if (start.toDateString() === end.toDateString()) {
+    return endStr
+  }
+  
+  return `${startStr} - ${endStr}`
 }
 
 /**
- * Get a formatted string for "This Week", "Last Week", etc.
- * @param weekOffset - Number of weeks from current (0 = this week, -1 = last week, etc.)
+ * Validate that a custom date range is reasonable for analysis
+ * @param startDate - Start date string (YYYY-MM-DD)
+ * @param endDate - End date string (YYYY-MM-DD)
  */
-export function getWeekLabel(weekOffset: number): string {
-  if (weekOffset === 0) return "This Week"
-  if (weekOffset === -1) return "Last Week"
-  if (weekOffset === 1) return "Next Week"
-  if (weekOffset < 0) return `${Math.abs(weekOffset)} Weeks Ago`
-  return `${weekOffset} Weeks Ahead`
+export function validateCustomDateRange(startDate: string, endDate: string): { isValid: boolean; error?: string } {
+  if (!startDate || !endDate) {
+    return { isValid: false, error: 'Both start and end dates are required' }
+  }
+  
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { isValid: false, error: 'Invalid date format' }
+  }
+  
+  if (start > end) {
+    return { isValid: false, error: 'Start date must be before or equal to end date' }
+  }
+  
+  const now = new Date()
+  if (start > now) {
+    return { isValid: false, error: 'Start date cannot be in the future' }
+  }
+  
+  // Check if range is too large (more than 2 years)
+  const daysDifference = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+  if (daysDifference > 730) {
+    return { isValid: false, error: 'Date range cannot exceed 2 years' }
+  }
+  
+  return { isValid: true }
 }

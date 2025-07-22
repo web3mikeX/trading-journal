@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { ArrowUpIcon, ArrowDownIcon, Eye, Calendar, Brain, FileText } from "lucide-react"
+import { ArrowUpIcon, ArrowDownIcon, Eye, Brain, FileText } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useTheme } from "@/components/ThemeProvider"
@@ -20,20 +20,12 @@ interface Trade {
   notes?: string
 }
 
-interface WeekMetadata {
-  weekStart: Date
-  weekEnd: Date
-  weekLabel: string
-  tradeCount: number
-}
-
 interface RecentTradesProps {
   trades: Trade[]
-  weekMetadata?: WeekMetadata
   onTradeClick?: (tradeId: string) => void
 }
 
-export default function RecentTrades({ trades, weekMetadata, onTradeClick }: RecentTradesProps) {
+export default function RecentTrades({ trades, onTradeClick }: RecentTradesProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const isDark = theme === 'dark'
@@ -66,7 +58,7 @@ export default function RecentTrades({ trades, weekMetadata, onTradeClick }: Rec
               className={`font-semibold leading-none tracking-tight ${isDark ? "text-white" : "text-black"}`}
               style={!isDark ? { color: '#000000 !important', fontWeight: 'bold' } : { color: 'white' }}
             >
-              This Week's Trades
+              Recent Trades
             </h3>
             <div className="flex items-center space-x-4">
               <button
@@ -89,28 +81,18 @@ export default function RecentTrades({ trades, weekMetadata, onTradeClick }: Rec
                   </>
                 )}
               </button>
-              {weekMetadata && (
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-gray-500" />
-                  <span className={`text-sm ${themeClasses.textSecondary}`}>
-                    {weekMetadata.weekLabel}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
-          {weekMetadata && (
-            <p className={`text-sm ${themeClasses.textSecondary} mt-1`}>
-              {weekMetadata.tradeCount} {weekMetadata.tradeCount === 1 ? 'trade' : 'trades'} this week
-            </p>
-          )}
+          <p className={`text-sm ${themeClasses.textSecondary} mt-1`}>
+            {trades.length} {trades.length === 1 ? 'trade' : 'trades'} shown
+          </p>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto">
             <div className="space-y-4">
               {trades.length === 0 ? (
                 <p className={`${themeClasses.textSecondary} text-center py-8`}>
-                  No trades this week. Start by adding your first trade!
+                  No recent trades. Start by adding your first trade!
                 </p>
               ) : (
                 trades.map((trade, index) => (

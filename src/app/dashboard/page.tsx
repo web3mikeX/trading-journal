@@ -15,12 +15,13 @@ import {
 
 import MetricCard from "@/components/Dashboard/MetricCard"
 import PerformanceChart from "@/components/Dashboard/PerformanceChart"
-import RecentTrades from "@/components/Dashboard/RecentTrades"
+import AccountReport from "@/components/Dashboard/AccountReport"
 import TradingCalendar from "@/components/TradingCalendar"
 import CalendarDayModal from "@/components/CalendarDayModal"
 import TradeDetailModal from "@/components/TradeDetailModal"
 import Header from "@/components/Header"
 import ErrorBoundary from "@/components/ErrorBoundary"
+import AIChat from "@/components/AIChat"
 import { formatCurrency } from "@/lib/utils"
 import { useStats } from "@/hooks/useStats"
 import { useTheme } from "@/components/ThemeProvider"
@@ -260,10 +261,8 @@ function DashboardContent() {
               </div>
               <div className="h-[430px]">
                 <ErrorBoundary>
-                  <RecentTrades 
+                  <AccountReport 
                     trades={stats.recentTrades} 
-                    weekMetadata={stats.weekMetadata}
-                    onTradeClick={handleTradeClick}
                   />
                 </ErrorBoundary>
               </div>
@@ -323,6 +322,9 @@ function DashboardContent() {
           window.location.reload()
         }}
       />
+
+      {/* AI Chat Assistant */}
+      <AIChat />
     </>
   )
 }

@@ -25,12 +25,6 @@ interface Stats {
     netPnL?: number
     status: 'OPEN' | 'CLOSED' | 'CANCELLED'
   }>
-  weekMetadata: {
-    weekStart: Date
-    weekEnd: Date
-    weekLabel: string
-    tradeCount: number
-  }
   winningTrades: number
   losingTrades: number
 }
@@ -65,14 +59,6 @@ export function useStats(userId: string) {
           exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
         }))
         
-        // Convert date strings back to Date objects for weekMetadata
-        if (data.weekMetadata) {
-          data.weekMetadata = {
-            ...data.weekMetadata,
-            weekStart: new Date(data.weekMetadata.weekStart),
-            weekEnd: new Date(data.weekMetadata.weekEnd)
-          }
-        }
         
         setStats(data)
       } catch (err) {
@@ -105,14 +91,6 @@ export function useStats(userId: string) {
         exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
       }))
       
-      // Convert date strings back to Date objects for weekMetadata
-      if (data.weekMetadata) {
-        data.weekMetadata = {
-          ...data.weekMetadata,
-          weekStart: new Date(data.weekMetadata.weekStart),
-          weekEnd: new Date(data.weekMetadata.weekEnd)
-        }
-      }
       
       setStats(data)
     } catch (err) {

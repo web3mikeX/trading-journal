@@ -7,6 +7,15 @@ datasource db {
   url      = "file:./dev.db"
 }
 
+enum AccountType {
+  EVALUATION_50K
+  EVALUATION_100K
+  EVALUATION_150K
+  EVALUATION
+  CUSTOM
+  LIVE_FUNDED
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -49,9 +58,26 @@ model User {
   timezone          String             @default("UTC")
   tradingStyle      String?
   experience        String?
+  // Account management fields
+  accountBalance    Float?
+  dailyLossLimit    Float?
+  maxLossLimit      Float?
+  profitTarget      Float?
+  accountStartDate  DateTime?
+  brokerSyncEnabled Boolean            @default(false)
+  autoSyncEnabled   Boolean            @default(false)
+  // Trailing drawdown fields
+  accountType       AccountType        @default(CUSTOM)
+  startingBalance   Float?
+  currentAccountHigh Float?
+  trailingDrawdownAmount Float?
+  isLiveFunded      Boolean            @default(false)
+  firstPayoutReceived Boolean          @default(false)
+  lastEodCalculation DateTime?
   accounts          Account[]
   brokerConnections BrokerConnection[]
   calendarEntries   CalendarEntry[]
+  dailySnapshots    DailyAccountSnapshot[]
   importJobs        ImportJob[]
   journalEntries    JournalEntry[]
   sessions          Session[]
@@ -229,6 +255,25 @@ model CalendarEntry {
   winRate       Float?
   aiSummary     String?  // AI-generated daily trading summary
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@index([date])
+}
+
+model DailyAccountSnapshot {
+  id                String   @id @default(cuid())
+  userId            String
+  date              DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  endOfDayBalance   Float
+  accountHigh       Float    // Running high water mark
+  calculatedMLL     Float    // Maximum Loss Limit as of this date
+  netPnLToDate      Float    // Cumulative P&L since account start
+  dailyPnL          Float    // P&L for this specific day
+  tradesCount       Int      @default(0)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
   @@index([userId, date])

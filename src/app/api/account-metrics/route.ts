@@ -1,0 +1,34 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getAccountMetrics } from '@/lib/trailingDrawdown'
+
+// GET /api/account-metrics - Get real-time account metrics including trailing drawdown
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const userId = searchParams.get('userId')
+
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
+    }
+
+    const metrics = await getAccountMetrics(userId)
+
+    if (!metrics) {
+      return NextResponse.json({ 
+        error: 'Unable to calculate account metrics. Please configure your account settings first.' 
+      }, { status: 404 })
+    }
+
+    // Add caching headers for better performance (shorter cache for real-time data)
+    const response = NextResponse.json(metrics)
+    response.headers.set('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30')
+    return response
+
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return NextResponse.json({ 
+      error: 'Internal Server Error', 
+      details: errorMessage
+    }, { status: 500 })
+  }
+}

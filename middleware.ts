@@ -14,11 +14,11 @@ export default withAuth(
   }
 )
 
-// Protect these routes
+// Protect these routes (excluding API routes)
 export const config = {
   matcher: [
     "/dashboard/:path*",
-    "/trades/:path*",
+    "/trades/:path*", 
     "/analytics/:path*",
     "/journal/:path*",
     "/settings/:path*"
