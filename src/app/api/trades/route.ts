@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { getContractMultiplier, getContractType } from '@/lib/contractSpecs'
+import { 
+  getContractMultiplier, 
+  getContractType, 
+  calculateTradeFees, 
+  detectBroker,
+  getBrokerFees
+} from '@/lib/contractSpecs'
 import { generateTradeHash, detectDuplicateTrade } from '@/lib/duplicateDetection'
 
 const TradeSchema = z.object({
@@ -28,15 +34,16 @@ const TradeSchema = z.object({
   dataSource: z.string().default('manual'),
 })
 
-// Calculate P&L for a trade
-function calculatePnL(trade: any) {
+// Calculate P&L for a trade with broker-specific fees
+function calculatePnL(trade: any, accountType?: string, applyAutoFees: boolean = true) {
   if (!trade.exitPrice || !trade.entryPrice) {
     return { 
       grossPnL: null, 
       netPnL: null, 
       returnPercent: null,
       contractMultiplier: getContractMultiplier(trade.symbol, trade.market),
-      contractType: getContractType(trade.symbol, trade.market)
+      contractType: getContractType(trade.symbol, trade.market),
+      feeCalculation: null
     }
   }
 
@@ -52,7 +59,17 @@ function calculatePnL(trade: any) {
   // Apply contract multiplier to calculate gross PnL
   const grossPnL = pointsDifference * trade.quantity * contractMultiplier
 
-  const totalFees = trade.entryFees + trade.exitFees + trade.commission + trade.swap
+  // Calculate fees - use existing fees if present, or auto-calculate
+  let totalFees = trade.entryFees + trade.exitFees + trade.commission + trade.swap
+  let feeCalculation = null
+  
+  // If no fees are set and auto-calculation is enabled, calculate broker-specific fees
+  if (totalFees === 0 && applyAutoFees && (trade.market === 'FUTURES' || trade.symbol.match(/^(MNQ|MES|MYM|NQ|ES|YM)/))) {
+    const broker = detectBroker(accountType, trade.dataSource)
+    feeCalculation = calculateTradeFees(trade.symbol, trade.quantity, broker)
+    totalFees = feeCalculation.totalFees
+  }
+
   const netPnL = grossPnL - totalFees
 
   const totalInvested = trade.entryPrice * trade.quantity * contractMultiplier
@@ -63,7 +80,9 @@ function calculatePnL(trade: any) {
     netPnL, 
     returnPercent,
     contractMultiplier,
-    contractType
+    contractType,
+    feeCalculation,
+    appliedFees: totalFees
   }
 }
 

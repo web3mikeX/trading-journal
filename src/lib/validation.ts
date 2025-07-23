@@ -1,5 +1,8 @@
 import { z } from 'zod'
 import DOMPurify from 'isomorphic-dompurify'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 // User validation schemas
 export const registerSchema = z.object({
@@ -142,4 +145,90 @@ export const sanitizeUserInput = (data: any): any => {
   }
   
   return data
+}
+
+// Account balance validation
+export interface BalanceValidation {
+  isValid: boolean
+  calculatedBalance: number
+  expectedBalance?: number
+  difference?: number
+  warnings: string[]
+  errors: string[]
+}
+
+/**
+ * Validate account balance calculation against expected values
+ */
+export async function validateAccountBalance(
+  userId: string, 
+  expectedBalance?: number
+): Promise<BalanceValidation> {
+  const warnings: string[] = []
+  const errors: string[] = []
+  
+  try {
+    // Get user and trades
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        startingBalance: true,
+        currentAccountHigh: true,
+        trades: {
+          where: { status: 'CLOSED' },
+          select: {
+            netPnL: true,
+            entryPrice: true,
+            exitPrice: true,
+            quantity: true,
+            side: true,
+            symbol: true
+          }
+        }
+      }
+    })
+
+    if (!user) {
+      errors.push('User not found')
+      return { isValid: false, calculatedBalance: 0, warnings, errors }
+    }
+
+    if (!user.startingBalance) {
+      errors.push('Starting balance not set')
+      return { isValid: false, calculatedBalance: 0, warnings, errors }
+    }
+
+    // Calculate total P&L
+    const totalPnL = user.trades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
+    const calculatedBalance = user.startingBalance + totalPnL
+
+    // Check against expected balance if provided
+    let difference = 0
+    if (expectedBalance) {
+      difference = Math.abs(calculatedBalance - expectedBalance)
+      
+      if (difference > 50) {
+        errors.push(`Large discrepancy: $${difference.toFixed(2)} difference from expected balance`)
+      } else if (difference > 10) {
+        warnings.push(`Moderate discrepancy: $${difference.toFixed(2)} difference from expected balance`)
+      } else if (difference > 1) {
+        warnings.push(`Small discrepancy: $${difference.toFixed(2)} difference from expected balance`)
+      }
+    }
+
+    const isValid = errors.length === 0 && (expectedBalance ? difference < 50 : true)
+
+    return {
+      isValid,
+      calculatedBalance,
+      expectedBalance,
+      difference: expectedBalance ? difference : undefined,
+      warnings,
+      errors
+    }
+
+  } catch (error) {
+    errors.push(`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    return { isValid: false, calculatedBalance: 0, warnings, errors }
+  }
 }

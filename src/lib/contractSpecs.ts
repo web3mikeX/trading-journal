@@ -9,6 +9,37 @@ export interface ContractSpecification {
   description: string
 }
 
+export interface BrokerFeeStructure {
+  broker: string
+  description: string
+  fees: {
+    [symbol: string]: {
+      roundTurnFee: number      // Total fee per round-turn contract
+      entryFee: number         // Fee per contract entry
+      exitFee: number          // Fee per contract exit
+      regulatoryFees: number   // NFA, clearing, exchange fees
+      platformFee?: number     // Additional platform fees
+    }
+  }
+  defaultFees: {
+    roundTurnFee: number
+    entryFee: number
+    exitFee: number
+    regulatoryFees: number
+    platformFee?: number
+  }
+}
+
+export interface FeeCalculation {
+  totalFees: number
+  entryFees: number
+  exitFees: number
+  commission: number
+  regulatoryFees: number
+  platformFees: number
+  feeBreakdown: string
+}
+
 // Common futures contract specifications
 export const CONTRACT_SPECIFICATIONS: Record<string, ContractSpecification> = {
   // Micro E-mini Futures
@@ -86,6 +117,64 @@ export const CONTRACT_SPECIFICATIONS: Record<string, ContractSpecification> = {
   }
 }
 
+// Broker-specific fee configurations
+export const BROKER_FEE_STRUCTURES: Record<string, BrokerFeeStructure> = {
+  TOPSTEP: {
+    broker: "TopStep",
+    description: "TopStep Trading Combine and Funded Account Fees",
+    fees: {
+      // Micro E-mini futures fees
+      "MNQ": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "MNQU5": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "MES": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "MYM": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      // Standard E-mini futures fees  
+      "NQ": { roundTurnFee: 2.68, entryFee: 1.34, exitFee: 1.34, regulatoryFees: 2.68, platformFee: 0 },
+      "ES": { roundTurnFee: 2.68, entryFee: 1.34, exitFee: 1.34, regulatoryFees: 2.68, platformFee: 0 },
+      "YM": { roundTurnFee: 2.68, entryFee: 1.34, exitFee: 1.34, regulatoryFees: 2.68, platformFee: 0 }
+    },
+    defaultFees: {
+      roundTurnFee: 1.34,
+      entryFee: 0.67,
+      exitFee: 0.67,
+      regulatoryFees: 1.34,
+      platformFee: 0
+    }
+  },
+  TRADOVATE: {
+    broker: "Tradovate",
+    description: "Tradovate Direct Trading Fees",
+    fees: {
+      "MNQ": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "MNQU5": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "MES": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "MYM": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
+      "NQ": { roundTurnFee: 2.68, entryFee: 1.34, exitFee: 1.34, regulatoryFees: 2.68, platformFee: 0 },
+      "ES": { roundTurnFee: 2.68, entryFee: 1.34, exitFee: 1.34, regulatoryFees: 2.68, platformFee: 0 },
+      "YM": { roundTurnFee: 2.68, entryFee: 1.34, exitFee: 1.34, regulatoryFees: 2.68, platformFee: 0 }
+    },
+    defaultFees: {
+      roundTurnFee: 1.34,
+      entryFee: 0.67,
+      exitFee: 0.67,
+      regulatoryFees: 1.34,
+      platformFee: 0
+    }
+  },
+  GENERIC: {
+    broker: "Generic",
+    description: "Generic broker estimation",
+    fees: {},
+    defaultFees: {
+      roundTurnFee: 1.50,
+      entryFee: 0.75,
+      exitFee: 0.75,
+      regulatoryFees: 1.50,
+      platformFee: 0
+    }
+  }
+}
+
 /**
  * Get contract specification for a given symbol
  * @param symbol The trading symbol (e.g., "MNQU5", "MNQ", "ES")
@@ -153,4 +242,100 @@ export function getContractType(symbol: string, market: string = "STOCK"): strin
  */
 export function isFuturesContract(symbol: string): boolean {
   return getContractSpec(symbol) !== null
+}
+
+/**
+ * Get broker-specific fees for a symbol
+ * @param symbol The trading symbol
+ * @param broker The broker name (TOPSTEP, TRADOVATE, etc.)
+ * @returns Fee structure for the symbol
+ */
+export function getBrokerFees(symbol: string, broker: string = "TOPSTEP") {
+  const brokerConfig = BROKER_FEE_STRUCTURES[broker.toUpperCase()]
+  if (!brokerConfig) {
+    return BROKER_FEE_STRUCTURES.GENERIC.defaultFees
+  }
+
+  // Check for exact symbol match first
+  if (brokerConfig.fees[symbol]) {
+    return brokerConfig.fees[symbol]
+  }
+
+  // Try base symbol (remove expiration codes)
+  const baseSymbol = symbol.replace(/[FGHJKMNQUVXZ]\d+$/, '')
+  if (brokerConfig.fees[baseSymbol]) {
+    return brokerConfig.fees[baseSymbol]
+  }
+
+  // Return default fees for broker
+  return brokerConfig.defaultFees
+}
+
+/**
+ * Calculate comprehensive fees for a trade
+ * @param symbol The trading symbol
+ * @param quantity Number of contracts
+ * @param broker The broker name
+ * @returns Complete fee calculation
+ */
+export function calculateTradeFees(
+  symbol: string, 
+  quantity: number, 
+  broker: string = "TOPSTEP"
+): FeeCalculation {
+  const fees = getBrokerFees(symbol, broker)
+  
+  const entryFees = fees.entryFee * quantity
+  const exitFees = fees.exitFee * quantity
+  const commission = fees.roundTurnFee * quantity
+  const regulatoryFees = fees.regulatoryFees * quantity
+  const platformFees = (fees.platformFee || 0) * quantity
+  
+  const totalFees = commission // Total round-turn fees
+  
+  return {
+    totalFees,
+    entryFees,
+    exitFees,
+    commission,
+    regulatoryFees,
+    platformFees,
+    feeBreakdown: `${broker}: $${fees.roundTurnFee}/contract × ${quantity} contracts = $${totalFees.toFixed(2)}`
+  }
+}
+
+/**
+ * Auto-detect broker based on account type or data source
+ * @param accountType User's account type
+ * @param dataSource Trade data source
+ * @returns Detected broker name
+ */
+export function detectBroker(accountType?: string, dataSource?: string): string {
+  // Check data source first
+  if (dataSource) {
+    if (dataSource.toLowerCase().includes('tradovate')) return 'TRADOVATE'
+    if (dataSource.toLowerCase().includes('topstep')) return 'TOPSTEP'
+  }
+  
+  // Check account type
+  if (accountType) {
+    if (accountType.includes('EVALUATION') || accountType.includes('FUNDED')) return 'TOPSTEP'
+    if (accountType.toLowerCase().includes('tradovate')) return 'TRADOVATE'
+  }
+  
+  // Default to TopStep for prop firm accounts
+  return 'TOPSTEP'
+}
+
+/**
+ * Get fee summary for a broker and symbol
+ * @param symbol The trading symbol
+ * @param broker The broker name
+ * @returns Human-readable fee summary
+ */
+export function getFeeSummary(symbol: string, broker: string = "TOPSTEP"): string {
+  const fees = getBrokerFees(symbol, broker)
+  const brokerConfig = BROKER_FEE_STRUCTURES[broker.toUpperCase()]
+  
+  return `${brokerConfig?.broker || broker}: $${fees.roundTurnFee} per round-turn contract (${symbol})`
 }
