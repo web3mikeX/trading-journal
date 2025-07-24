@@ -40,7 +40,16 @@
       "Bash(/mnt/c/Users/nftmi/OneDrive/Desktop/Tradedeta/trading-journal/WORKING-START.sh:*)",
       "Bash(hostname:*)",
       "Bash(node:*)",
-      "Bash(PORT=8080 npm run dev)"
+      "Bash(PORT=8080 npm run dev)",
+      "Bash(npx next dev:*)",
+      "Bash(npm:*)",
+      "Bash(sqlite3:*)",
+      "Bash(npx ts-node:*)",
+      "WebFetch(domain:intercom.help)",
+      "Bash(pgrep:*)",
+      "Bash(fuser:*)",
+      "Bash(CTRL+C)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

@@ -120,8 +120,8 @@ export const CONTRACT_SPECIFICATIONS: Record<string, ContractSpecification> = {
 // Broker-specific fee configurations
 export const BROKER_FEE_STRUCTURES: Record<string, BrokerFeeStructure> = {
   TOPSTEP: {
-    broker: "TopStep",
-    description: "TopStep Trading Combine and Funded Account Fees",
+    broker: "Prop Firm",
+    description: "Prop Firm Trading Combine and Funded Account Fees",
     fees: {
       // Micro E-mini futures fees
       "MNQ": { roundTurnFee: 1.34, entryFee: 0.67, exitFee: 0.67, regulatoryFees: 1.34, platformFee: 0 },
@@ -323,7 +323,7 @@ export function detectBroker(accountType?: string, dataSource?: string): string 
     if (accountType.toLowerCase().includes('tradovate')) return 'TRADOVATE'
   }
   
-  // Default to TopStep for prop firm accounts
+  // Default to prop firm accounts
   return 'TOPSTEP'
 }
 

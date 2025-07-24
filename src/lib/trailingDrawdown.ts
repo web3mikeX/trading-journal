@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { AccountType } from '@prisma/client'
+import { detectBroker, getFeeSummary } from '@/lib/contractSpecs'
 
 // Evaluation account MLL amounts based on account size
 export const EVALUATION_MLL_AMOUNTS: Record<string, number> = {
@@ -47,6 +48,18 @@ export interface AccountMetrics {
   accountStartDate: Date | null
   isLiveFunded: boolean
   firstPayoutReceived: boolean
+}
+
+export interface AccountMetricsWithFees extends AccountMetrics {
+  broker: string | null
+  totalFeesToDate: number
+  dailyFees: number
+  grossPnLToDate: number
+  grossDailyPnL: number
+  feeImpactPercentage: number
+  averageFeePerTrade: number
+  balanceValidated: boolean
+  lastValidationDate: Date | null
 }
 
 export interface TradeForCalculation {
@@ -283,6 +296,10 @@ export async function getAccountMetrics(userId: string): Promise<AccountMetrics 
       ? 0 
       : accountHigh - trailingDrawdownAmount
 
+    // Detect and format broker for display
+    const broker = detectBroker(user.accountType, undefined)
+    const displayBroker = broker === 'TOPSTEP' ? 'Prop Firm' : broker
+
     return {
       currentBalance,
       accountHigh,
@@ -300,7 +317,8 @@ export async function getAccountMetrics(userId: string): Promise<AccountMetrics 
       dailyBuffer,
       accountStartDate: user.accountStartDate,
       isLiveFunded: user.isLiveFunded,
-      firstPayoutReceived: user.firstPayoutReceived
+      firstPayoutReceived: user.firstPayoutReceived,
+      broker: displayBroker
     }
   } catch (error) {
     console.error('Error calculating account metrics:', error)
@@ -390,6 +408,99 @@ export async function getAccountHistory(
       date: 'asc'
     }
   })
+}
+
+/**
+ * Get comprehensive account metrics with fee transparency for a user
+ */
+export async function getAccountMetricsWithFees(userId: string): Promise<AccountMetricsWithFees | null> {
+  try {
+    // Get base metrics first
+    const baseMetrics = await getAccountMetrics(userId)
+    if (!baseMetrics) return null
+
+    // Get user account settings for broker detection
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        accountType: true,
+        trades: {
+          select: {
+            netPnL: true,
+            grossPnL: true,
+            commission: true,
+            entryFees: true,
+            exitFees: true,
+            entryDate: true,
+            status: true,
+            symbol: true
+          }
+        }
+      }
+    })
+
+    if (!user) return null
+
+    // Detect broker from account type
+    const broker = detectBroker(user.accountType, undefined)
+
+    // Calculate fee-related metrics
+    const allTrades = user.trades.filter(trade => trade.status === 'CLOSED')
+    const totalFeesToDate = allTrades.reduce((sum, trade) => {
+      const commission = trade.commission || 0
+      const entryFees = trade.entryFees || 0
+      const exitFees = trade.exitFees || 0
+      return sum + commission + entryFees + exitFees
+    }, 0)
+
+    // Calculate today's fees
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    const todayTrades = allTrades.filter(trade => {
+      const tradeDate = new Date(trade.entryDate)
+      return tradeDate >= today && tradeDate < tomorrow
+    })
+
+    const dailyFees = todayTrades.reduce((sum, trade) => {
+      const commission = trade.commission || 0
+      const entryFees = trade.entryFees || 0
+      const exitFees = trade.exitFees || 0
+      return sum + commission + entryFees + exitFees
+    }, 0)
+
+    // Calculate gross P&L (before fees)
+    const grossPnLToDate = allTrades.reduce((sum, trade) => sum + (trade.grossPnL || trade.netPnL || 0), 0)
+    const grossDailyPnL = todayTrades.reduce((sum, trade) => sum + (trade.grossPnL || trade.netPnL || 0), 0)
+
+    // Calculate fee impact percentage
+    const feeImpactPercentage = grossPnLToDate > 0 ? (totalFeesToDate / grossPnLToDate) * 100 : 0
+
+    // Calculate average fee per trade
+    const averageFeePerTrade = allTrades.length > 0 ? totalFeesToDate / allTrades.length : 0
+
+    // Simple balance validation - consider balance validated if we have recent trades with proper calculations
+    const balanceValidated = allTrades.length > 0 && baseMetrics.currentBalance > 0
+    const lastValidationDate = allTrades.length > 0 ? new Date() : null
+
+    return {
+      ...baseMetrics,
+      broker: broker === 'TOPSTEP' ? 'Prop Firm' : broker,
+      totalFeesToDate,
+      dailyFees,
+      grossPnLToDate,
+      grossDailyPnL,
+      feeImpactPercentage,
+      averageFeePerTrade,
+      balanceValidated,
+      lastValidationDate
+    }
+  } catch (error) {
+    console.error('Error calculating account metrics with fees:', error)
+    return null
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAccountMetrics } from '@/lib/trailingDrawdown'
+import { getAccountMetrics, getAccountMetricsWithFees } from '@/lib/trailingDrawdown'
 
 // GET /api/account-metrics - Get real-time account metrics including trailing drawdown
 export async function GET(request: NextRequest) {
@@ -19,9 +19,9 @@ export async function GET(request: NextRequest) {
       }, { status: 404 })
     }
 
-    // Add caching headers for better performance (shorter cache for real-time data)
+    // No caching for now to ensure fresh data
     const response = NextResponse.json(metrics)
-    response.headers.set('Cache-Control', 'public, s-maxage=10, stale-while-revalidate=30')
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate')
     return response
 
   } catch (error) {
