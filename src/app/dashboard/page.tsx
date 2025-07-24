@@ -257,7 +257,12 @@ function DashboardContent() {
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
               <div className="lg:col-span-2">
-                <PerformanceChart data={stats.performanceData} />
+                <PerformanceChart 
+                  data={stats.performanceData}
+                  balanceValidation={stats.balanceValidation}
+                  accountMetricsAvailable={stats.accountMetricsAvailable}
+                  currentBalance={stats.currentBalance}
+                />
               </div>
               <div className="h-[430px]">
                 <ErrorBoundary>

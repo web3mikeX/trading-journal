@@ -14,7 +14,9 @@ import {
   CalendarIcon,
   SettingsIcon,
   ShieldIcon,
-  BarChart3Icon
+  BarChart3Icon,
+  DollarSignIcon,
+  BuildingIcon
 } from "lucide-react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
@@ -41,6 +43,17 @@ interface AccountMetrics {
   accountStartDate: string | null
   isLiveFunded: boolean
   firstPayoutReceived: boolean
+  // Fee transparency fields
+  broker?: string | null
+  totalFeesToDate?: number
+  dailyFees?: number
+  grossPnLToDate?: number
+  grossDailyPnL?: number
+  feeImpactPercentage?: number
+  averageFeePerTrade?: number
+  // Balance validation fields
+  balanceValidated?: boolean
+  lastValidationDate?: string | null
   // Legacy fields for backward compatibility
   calculatedMLL?: number
   isWithinMLL?: boolean
@@ -59,6 +72,7 @@ interface AccountReportProps {
 }
 
 export default function AccountReport({ trades }: AccountReportProps) {
+  console.log('AccountReport component loaded') // Debug log
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const { user } = useAuth()
@@ -79,6 +93,7 @@ export default function AccountReport({ trades }: AccountReportProps) {
         const response = await fetch(`/api/account-metrics?userId=${user.id}&t=${Date.now()}`)
         if (response.ok) {
           const metrics = await response.json()
+          console.log('Account metrics:', metrics) // Debug log
           setAccountMetrics(metrics)
         } else {
           setAccountMetrics(null)
@@ -140,6 +155,48 @@ export default function AccountReport({ trades }: AccountReportProps) {
     )
   }
 
+  // Format account type for display
+  const formatAccountType = (type: string) => {
+    switch (type) {
+      case 'EVALUATION_50K': return 'Evaluation $50K'
+      case 'EVALUATION_100K': return 'Evaluation $100K'
+      case 'EVALUATION_150K': return 'Evaluation $150K'
+      case 'EVALUATION': return 'Evaluation Account'
+      case 'LIVE_FUNDED': return 'Live Funded'
+      case 'CUSTOM': return 'Custom Account'
+      case 'TOPSTEP': return 'Prop Firm Account'
+      case 'TOPSTEP_50K': return 'Prop Firm $50K'
+      case 'TOPSTEP_100K': return 'Prop Firm $100K'
+      case 'TOPSTEP_150K': return 'Prop Firm $150K'
+      default: return type === 'TOPSTEP' ? 'Prop Firm Account' : (type || '').replace(/TOPSTEP/gi, 'Prop Firm')
+    }
+  }
+
+  // Format broker name for display
+  const formatBrokerName = (broker: string) => {
+    switch (broker) {
+      case 'TOPSTEP': return 'Prop Firm'
+      case 'TRADOVATE': return 'Tradovate'
+      case 'GENERIC': return 'Futures Broker'
+      default: return broker === 'TOPSTEP' ? 'Prop Firm' : (broker || '').replace(/TOPSTEP/gi, 'Prop Firm')
+    }
+  }
+
+  // Sanitize all account metrics to remove TOPSTEP branding
+  const sanitizedMetrics = {
+    ...accountMetrics,
+    accountType: formatAccountType(accountMetrics.accountType),
+    broker: accountMetrics.broker ? formatBrokerName(accountMetrics.broker) : null
+  }
+
+  // Emergency replacement function
+  const replaceTopStepText = (text: any): string => {
+    if (typeof text === 'string') {
+      return text.replace(/TOPSTEP/gi, 'PROP_FIRM')
+    }
+    return String(text || '').replace(/TOPSTEP/gi, 'PROP_FIRM')
+  }
+
   // Calculate today's trades count
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -150,19 +207,6 @@ export default function AccountReport({ trades }: AccountReportProps) {
     const tradeDate = new Date(trade.entryDate)
     return tradeDate >= today && tradeDate < tomorrow
   })
-
-  // Format account type for display
-  const formatAccountType = (type: string) => {
-    switch (type) {
-      case 'EVALUATION_50K': return 'Evaluation $50K'
-      case 'EVALUATION_100K': return 'Evaluation $100K'
-      case 'EVALUATION_150K': return 'Evaluation $150K'
-      case 'EVALUATION': return 'Evaluation Account'
-      case 'LIVE_FUNDED': return 'Live Funded'
-      case 'CUSTOM': return 'Custom Account'
-      default: return 'Unknown Account'
-    }
-  }
 
   return (
     <motion.div
@@ -196,7 +240,7 @@ export default function AccountReport({ trades }: AccountReportProps) {
             <div className="flex items-center space-x-2">
               <BarChart3Icon className={`w-3 h-3 ${themeClasses.textSecondary}`} />
               <span className={`text-xs ${themeClasses.textSecondary}`}>
-                {formatAccountType(accountMetrics.accountType)}
+                {sanitizedMetrics.accountType}
               </span>
             </div>
             {accountMetrics.accountStartDate && (
@@ -204,6 +248,14 @@ export default function AccountReport({ trades }: AccountReportProps) {
                 <CalendarIcon className={`w-3 h-3 ${themeClasses.textSecondary}`} />
                 <span className={`text-xs ${themeClasses.textSecondary}`}>
                   Since {formatDate(new Date(accountMetrics.accountStartDate))}
+                </span>
+              </div>
+            )}
+            {sanitizedMetrics.broker && (
+              <div className="flex items-center space-x-2">
+                <BuildingIcon className={`w-3 h-3 ${themeClasses.textSecondary}`} />
+                <span className={`text-xs ${themeClasses.textSecondary}`}>
+                  {replaceTopStepText(sanitizedMetrics.broker)}
                 </span>
               </div>
             )}
@@ -219,6 +271,11 @@ export default function AccountReport({ trades }: AccountReportProps) {
                     <CreditCardIcon className="w-3 h-3 text-blue-400" />
                   </div>
                   <span className={`text-sm ${themeClasses.text}`}>Balance</span>
+                  {accountMetrics.balanceValidated && (
+                    <div className="p-1 rounded-full bg-green-500/20">
+                      <CheckCircleIcon className="w-2 h-2 text-green-400" />
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className={`font-semibold text-lg ${themeClasses.text}`}>
@@ -394,6 +451,52 @@ export default function AccountReport({ trades }: AccountReportProps) {
                 </div>
               </div>
             </div>
+
+            {/* Trading Fees Section */}
+            {(accountMetrics.totalFeesToDate !== undefined && accountMetrics.totalFeesToDate > 0) && (
+              <>
+                {/* Total Fees */}
+                <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-500/10">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    <div className="p-1 rounded-full bg-amber-500/20">
+                      <DollarSignIcon className="w-3 h-3 text-amber-400" />
+                    </div>
+                    <span className={`text-sm ${themeClasses.text}`}>Total Fees</span>
+                  </div>
+                  <div className="flex-shrink-0 text-right pl-2">
+                    <div className="font-semibold text-amber-400">
+                      {formatCurrency(accountMetrics.totalFeesToDate)}
+                    </div>
+                    <div className={`text-xs ${themeClasses.textSecondary}`}>
+                      ${accountMetrics.averageFeePerTrade?.toFixed(2) || '0.00'} avg/trade
+                    </div>
+                  </div>
+                </div>
+
+                {/* Today's Fees */}
+                {(accountMetrics.dailyFees !== undefined && accountMetrics.dailyFees > 0) && (
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-500/10">
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <div className="p-1 rounded-full bg-amber-500/20">
+                        <DollarSignIcon className="w-3 h-3 text-amber-400" />
+                      </div>
+                      <span className={`text-sm ${themeClasses.text}`}>Today's Fees</span>
+                    </div>
+                    <div className="flex-shrink-0 text-right pl-2">
+                      <div className="font-semibold text-amber-400">
+                        {formatCurrency(accountMetrics.dailyFees)}
+                      </div>
+                      <div className={`text-xs ${themeClasses.textSecondary}`}>
+                        {accountMetrics.feeImpactPercentage !== undefined && accountMetrics.feeImpactPercentage > 0 
+                          ? `${accountMetrics.feeImpactPercentage.toFixed(1)}% of profits` 
+                          : 'Fee impact'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Special Status Messages */}
             {accountMetrics.isLiveFunded && accountMetrics.firstPayoutReceived && (

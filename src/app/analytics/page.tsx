@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion"
 import { useEffect, useState } from "react"
-import { TrendingUpIcon, BarChart3Icon, DollarSignIcon, CalendarIcon, TrendingDownIcon, ActivityIcon, TargetIcon, FileTextIcon } from "lucide-react"
+import { TrendingUpIcon, BarChart3Icon, DollarSignIcon, CalendarIcon, TrendingDownIcon, ActivityIcon, TargetIcon, FileTextIcon, CheckCircleIcon, InfoIcon, AlertTriangleIcon } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
 import Header from "@/components/Header"
 import ExportButton from "@/components/ExportButton"
@@ -257,7 +257,45 @@ export default function Analytics() {
               transition={{ duration: 0.6, delay: 0.8 }}
               className={`${themeClasses.surface} rounded-xl p-8`}
             >
-              <h2 className={`text-xl font-semibold ${themeClasses.text} mb-6`}>Account Balance Over Time</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className={`text-xl font-semibold ${themeClasses.text}`}>Account Balance Over Time</h2>
+                
+                <div className="flex items-center space-x-2">
+                  {/* Data validation indicator */}
+                  {stats.balanceValidation && (
+                    <div className="flex items-center space-x-1">
+                      {stats.balanceValidation.isValid ? (
+                        <CheckCircleIcon className="w-4 h-4 text-green-500" title="Data validated" />
+                      ) : (
+                        <AlertTriangleIcon 
+                          className="w-4 h-4 text-yellow-500" 
+                          title={`Balance difference: $${stats.balanceValidation.difference.toFixed(2)}`} 
+                        />
+                      )}
+                    </div>
+                  )}
+                  
+                  {stats.accountMetricsAvailable && (
+                    <InfoIcon 
+                      className="w-4 h-4 text-blue-500" 
+                      title="Enhanced with account metrics" 
+                    />
+                  )}
+                </div>
+              </div>
+              
+              {/* Balance validation warning */}
+              {stats.balanceValidation && !stats.balanceValidation.isValid && (
+                <div className="mb-4 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-md">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangleIcon className="w-3 h-3 text-yellow-500" />
+                    <span className={`text-xs ${themeClasses.textSecondary}`}>
+                      Chart balance differs from account metrics by ${stats.balanceValidation.difference.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               {performanceChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={performanceChartData}>

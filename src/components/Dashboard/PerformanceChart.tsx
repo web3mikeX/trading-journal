@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
+import { AlertTriangleIcon, CheckCircleIcon, InfoIcon } from "lucide-react"
 
 interface PerformanceData {
   date: string
@@ -12,16 +13,28 @@ interface PerformanceData {
   pnl: number
 }
 
+interface BalanceValidation {
+  isValid: boolean
+  difference: number
+  withinTolerance: boolean
+}
+
 interface PerformanceChartProps {
   data: PerformanceData[]
   title?: string
   height?: number
+  balanceValidation?: BalanceValidation | null
+  accountMetricsAvailable?: boolean
+  currentBalance?: number
 }
 
 export default function PerformanceChart({ 
   data, 
   title = "Account Performance", 
-  height = 350 
+  height = 350,
+  balanceValidation,
+  accountMetricsAvailable,
+  currentBalance
 }: PerformanceChartProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
@@ -46,12 +59,47 @@ export default function PerformanceChart({
     >
       <Card className={themeClasses.surface}>
         <CardHeader>
-          <h3 
-            className={`font-semibold leading-none tracking-tight ${isDark ? "text-white" : "text-black"}`}
-            style={!isDark ? { color: '#000000 !important', fontWeight: 'bold' } : { color: 'white' }}
-          >
-            {title}
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 
+              className={`font-semibold leading-none tracking-tight ${isDark ? "text-white" : "text-black"}`}
+              style={!isDark ? { color: '#000000 !important', fontWeight: 'bold' } : { color: 'white' }}
+            >
+              {title}
+            </h3>
+            
+            {/* Data validation indicator */}
+            {balanceValidation && (
+              <div className="flex items-center space-x-1">
+                {balanceValidation.isValid ? (
+                  <CheckCircleIcon className="w-4 h-4 text-green-500" title="Data validated" />
+                ) : (
+                  <AlertTriangleIcon 
+                    className="w-4 h-4 text-yellow-500" 
+                    title={`Balance difference: $${balanceValidation.difference.toFixed(2)}`} 
+                  />
+                )}
+              </div>
+            )}
+            
+            {accountMetricsAvailable && (
+              <InfoIcon 
+                className="w-4 h-4 text-blue-500" 
+                title="Enhanced with account metrics" 
+              />
+            )}
+          </div>
+          
+          {/* Balance validation warning */}
+          {balanceValidation && !balanceValidation.isValid && (
+            <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-md">
+              <div className="flex items-center space-x-2">
+                <AlertTriangleIcon className="w-3 h-3 text-yellow-500" />
+                <span className={`text-xs ${themeClasses.textSecondary}`}>
+                  Chart balance differs from account metrics by ${balanceValidation.difference.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={height}>
