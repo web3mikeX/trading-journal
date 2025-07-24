@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
   MessageCircle, 
@@ -70,10 +71,20 @@ export default function AIChat({ className }: AIChatProps) {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [position, setPosition] = useState<'bottom-right' | 'bottom-left' | 'center'>('bottom-right')
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Add a small delay to ensure all DOM elements are fully rendered
+    const timer = setTimeout(() => {
+      setMounted(true)
+    }, 100)
+    
+    return () => clearTimeout(timer)
+  }, [])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -195,10 +206,31 @@ export default function AIChat({ className }: AIChatProps) {
       case 'bottom-left':
         return 'bottom-6 left-6'
       case 'center':
-        return 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'
+        return ''
       default:
         return 'bottom-6 right-6'
     }
+  }
+
+  const getPositionStyles = () => {
+    const baseStyles = {
+      position: 'fixed' as const,
+      // Force fixed positioning to override any inherited positioning
+      transform: position === 'center' ? 'translate(-50%, -50%)' : undefined,
+      willChange: 'transform' as const,
+      // Ensure the element creates its own stacking context
+      isolation: 'isolate' as const
+    }
+
+    if (position === 'center') {
+      return {
+        ...baseStyles,
+        top: '50%',
+        left: '50%'
+      }
+    }
+    
+    return baseStyles
   }
 
   const togglePosition = () => {
@@ -367,35 +399,35 @@ export default function AIChat({ className }: AIChatProps) {
     )
   }
 
-  if (!isOpen) {
-    return (
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsOpen(true)}
-        className={`fixed ${getPositionClasses()} w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-50 ${className}`}
-      >
-        <Brain className="w-6 h-6" />
-      </motion.button>
-    )
-  }
+  if (!mounted) return null
 
-  return (
+  const chatContent = !isOpen ? (
+    <motion.button
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={() => setIsOpen(true)}
+      className={`fixed ${getPositionClasses()} w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center z-[9999] ${className}`}
+      style={getPositionStyles()}
+    >
+      <Brain className="w-6 h-6" />
+    </motion.button>
+  ) : (
     <motion.div
       ref={chatRef}
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 20, scale: 0.95 }}
-      className={`fixed ${getPositionClasses()} ${themeClasses.surface} border ${themeClasses.border} rounded-lg shadow-xl flex flex-col z-50 relative ${className} ${isResizing ? 'cursor-nw-resize' : ''}`}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className={`fixed ${getPositionClasses()} ${themeClasses.surface} border ${themeClasses.border} rounded-lg shadow-xl flex flex-col z-[9999] ${className} ${isResizing ? 'cursor-nw-resize' : ''}`}
       style={{
         width: `${chatSize.width}px`,
         height: `${chatSize.height}px`,
         minWidth: '320px',
         minHeight: '400px',
         maxWidth: '90vw',
-        maxHeight: '90vh'
+        maxHeight: '90vh',
+        ...getPositionStyles()
       }}
     >
       {/* Header */}
@@ -682,4 +714,11 @@ export default function AIChat({ className }: AIChatProps) {
       </div>
     </motion.div>
   )
+
+  // Ensure document.body is available and component is mounted
+  if (typeof window === 'undefined' || !document.body) {
+    return null
+  }
+  
+  return createPortal(chatContent, document.body)
 }

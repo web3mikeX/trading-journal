@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client')
 const fs = require('fs')
+const path = require('path')
 
 const prisma = new PrismaClient()
 
@@ -20,7 +21,8 @@ async function importMissingTrades() {
     console.log(`  Deleted ${deletedTrades.count} existing MNQU5 trades\n`)
     
     // Read CSV file
-    const csvContent = fs.readFileSync('/mnt/c/Users/nftmi/OneDrive/Desktop/TRADING/PerformanceJULY2025/JUL-23-7-25-Performance.csv', 'utf8')
+    const csvPath = path.join(process.env.HOME || process.env.USERPROFILE || __dirname, 'OneDrive', 'Desktop', 'TRADING', 'PerformanceJULY2025', 'JUL-23-7-25-Performance.csv')
+    const csvContent = fs.readFileSync(csvPath, 'utf8')
     const lines = csvContent.split('\n').filter(line => line.trim())
     
     console.log('📊 Processing CSV trades...')

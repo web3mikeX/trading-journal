@@ -49,7 +49,17 @@
       "Bash(pgrep:*)",
       "Bash(fuser:*)",
       "Bash(CTRL+C)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(./WORKING-START.sh:*)",
+      "Bash(PORT=3000 npm run dev)",
+      "Bash(npx next:*)",
+      "Bash(python3:*)",
+      "Bash(powershell:*)",
+      "Bash(taskkill:*)",
+      "Bash(wmic process where name=\"node.exe\":*)",
+      "Bash(cmd /c:*)",
+      "Bash(rd:*)",
+      "Bash(tasklist:*)"
     ],
     "deny": []
   }

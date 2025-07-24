@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/ui/toast";
 import Providers from "@/components/Providers";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "DetaWise",
@@ -17,13 +18,15 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased" suppressHydrationWarning={true}>
-        <ThemeProvider>
-          <ToastProvider>
-            <Providers>
-              {children}
-            </Providers>
-          </ToastProvider>
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <ToastProvider>
+              <Providers>
+                {children}
+              </Providers>
+            </ToastProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

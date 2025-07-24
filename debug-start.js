@@ -5,7 +5,7 @@ const path = require('path');
 console.log('🔧 Starting ORIGINAL Next.js Trading Journal with debugging...');
 
 // Ensure .env.local exists
-const envPath = '/mnt/c/Users/nftmi/OneDrive/Desktop/Tradedeta/trading-journal/.env.local';
+const envPath = path.join(__dirname, '.env.local');
 const envContent = `
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=demo-secret-key-for-development-only-please-change-in-production
@@ -19,11 +19,11 @@ if (!fs.existsSync(envPath)) {
 }
 
 // Check if dependencies are installed
-const nodeModulesPath = '/mnt/c/Users/nftmi/OneDrive/Desktop/Tradedeta/trading-journal/node_modules';
+const nodeModulesPath = path.join(__dirname, 'node_modules');
 if (!fs.existsSync(nodeModulesPath)) {
   console.log('📦 Installing dependencies...');
   const installProcess = spawn('npm', ['install'], {
-    cwd: '/mnt/c/Users/nftmi/OneDrive/Desktop/Tradedeta/trading-journal',
+    cwd: __dirname,
     stdio: 'inherit'
   });
   
@@ -45,7 +45,7 @@ function startNextApp() {
   console.log('🚀 Starting Next.js application...');
   
   const nextProcess = spawn('npx', ['next', 'dev', '--port', '3000'], {
-    cwd: '/mnt/c/Users/nftmi/OneDrive/Desktop/Tradedeta/trading-journal',
+    cwd: __dirname,
     env: {
       ...process.env,
       NODE_ENV: 'development',

@@ -78,7 +78,7 @@ export function calculatePreciseBalanceAtDate(
     new Date(trade.entryDate).getTime() <= targetTime
   ) : []
   
-  // Calculate realized P&L and fees
+  // Calculate realized P&L (netPnL already includes fees)
   const realizedPnL = realizedTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
   const totalFees = realizedTrades.reduce((sum, trade) => {
     const commission = trade.commission || 0
@@ -95,8 +95,9 @@ export function calculatePreciseBalanceAtDate(
   }, 0)
   
   const totalPnL = realizedPnL + unrealizedPnL
+  // Use netPnL for balance since it already accounts for fees
   const balance = startingBalance + realizedPnL
-  const netBalance = balance - totalFees // Balance after accounting for fees separately
+  const netBalance = balance // netPnL already includes fees
   
   return {
     date: targetDate.toISOString().split('T')[0],
@@ -163,6 +164,7 @@ export function generateMonthlyPerformanceData(
   const result = []
   const currentMonth = new Date()
   
+  // Generate data points for each month
   for (let i = monthsBack - 1; i >= 0; i--) {
     const monthDate = new Date(currentMonth)
     monthDate.setMonth(monthDate.getMonth() - i)
@@ -172,6 +174,7 @@ export function generateMonthlyPerformanceData(
     monthEnd.setMonth(monthEnd.getMonth() + 1)
     monthEnd.setDate(0) // End of month
     
+    // Calculate balance at end of this month (cumulative)
     const balancePoint = calculatePreciseBalanceAtDate(
       startingBalance,
       trades,
@@ -179,24 +182,34 @@ export function generateMonthlyPerformanceData(
       includeUnrealized
     )
     
-    // Calculate monthly P&L
-    const prevMonthEnd = new Date(monthDate)
-    prevMonthEnd.setDate(0) // Previous month end
+    // Calculate monthly P&L by comparing with previous month
+    let monthlyPnL = 0
+    let monthlyTrades = 0
     
-    const prevBalancePoint = calculatePreciseBalanceAtDate(
-      startingBalance,
-      trades,
-      prevMonthEnd,
-      includeUnrealized
-    )
-    
-    const monthlyPnL = balancePoint.realizedPnL - prevBalancePoint.realizedPnL
+    if (i > 0) {
+      const prevMonthEnd = new Date(monthDate)
+      prevMonthEnd.setDate(0) // Previous month end
+      
+      const prevBalancePoint = calculatePreciseBalanceAtDate(
+        startingBalance,
+        trades,
+        prevMonthEnd,
+        includeUnrealized
+      )
+      
+      monthlyPnL = balancePoint.realizedPnL - prevBalancePoint.realizedPnL
+      monthlyTrades = balancePoint.tradeCount - prevBalancePoint.tradeCount
+    } else {
+      // First month - compare with starting balance
+      monthlyPnL = balancePoint.realizedPnL
+      monthlyTrades = balancePoint.tradeCount
+    }
     
     result.push({
-      date: `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, '0')}`,
+      date: monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
       balance: balancePoint.balance,
       pnl: monthlyPnL,
-      trades: balancePoint.tradeCount - prevBalancePoint.tradeCount
+      trades: monthlyTrades
     })
   }
   

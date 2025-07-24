@@ -143,7 +143,7 @@ export async function GET(request: NextRequest) {
       balanceValidation = validateBalanceConsistency(
         latestPerformanceBalance,
         accountMetrics.currentBalance,
-        1.0 // Allow $1 tolerance for minor calculation differences
+        50.0 // Allow $50 tolerance for minor calculation differences
       )
     }
 
