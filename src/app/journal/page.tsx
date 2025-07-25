@@ -14,9 +14,10 @@ import { exportJournalToCSV } from "@/lib/exports"
 export default function Journal() {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
-  const { entries, loading, error, createEntry, fetchEntries, deleteEntry } = useJournal()
+  const { entries, loading, error, createEntry, updateEntry, fetchEntries, deleteEntry } = useJournal()
   
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingEntry, setEditingEntry] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [entryTypeFilter, setEntryTypeFilter] = useState("")
 
@@ -30,10 +31,23 @@ export default function Journal() {
     excitement?: number;
     tradeId?: string;
   }) => {
-    const result = await createEntry(newEntry)
-    if (result) {
-      setIsModalOpen(false)
+    if (editingEntry) {
+      const result = await updateEntry(editingEntry.id, newEntry)
+      if (result) {
+        setIsModalOpen(false)
+        setEditingEntry(null)
+      }
+    } else {
+      const result = await createEntry(newEntry)
+      if (result) {
+        setIsModalOpen(false)
+      }
     }
+  }
+
+  const handleEditEntry = (entry: any) => {
+    setEditingEntry(entry)
+    setIsModalOpen(true)
   }
 
   const handleDeleteEntry = async (entryId: string) => {
@@ -204,11 +218,10 @@ export default function Journal() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          // Future: implement edit functionality
+                          handleEditEntry(entry)
                         }}
-                        className={`p-1 ${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors opacity-50`}
-                        title="Edit entry (coming soon)"
-                        disabled
+                        className={`p-1 ${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors`}
+                        title="Edit entry"
                       >
                         <EditIcon className="w-4 h-4" />
                       </button>
@@ -288,8 +301,12 @@ export default function Journal() {
       
       <NewEntryModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false)
+          setEditingEntry(null)
+        }}
         onSave={handleSaveEntry}
+        editingEntry={editingEntry}
       />
     </div>
   )

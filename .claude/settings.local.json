@@ -59,7 +59,8 @@
       "Bash(wmic process where name=\"node.exe\":*)",
       "Bash(cmd /c:*)",
       "Bash(rd:*)",
-      "Bash(tasklist:*)"
+      "Bash(tasklist:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Save } from "lucide-react"
+import { X, Save, Upload, Trash2 } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { useTrades } from "@/hooks/useTrades"
@@ -21,24 +21,45 @@ interface NewEntryModalProps {
     excitement?: number;
     tradeId?: string;
   }) => Promise<any>
+  editingEntry?: any
 }
 
-export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModalProps) {
+export default function NewEntryModal({ isOpen, onClose, onSave, editingEntry }: NewEntryModalProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const { user } = useAuth()
   const { trades } = useTrades(user?.id || '')
   
-  const [title, setTitle] = useState("")
-  const [content, setContent] = useState("")
-  const [entryType, setEntryType] = useState<'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON'>('GENERAL')
-  const [mood, setMood] = useState<number | undefined>(undefined)
-  const [confidence, setConfidence] = useState<number | undefined>(undefined)
-  const [fear, setFear] = useState<number | undefined>(undefined)
-  const [excitement, setExcitement] = useState<number | undefined>(undefined)
-  const [tradeId, setTradeId] = useState<string | undefined>(undefined)
+  const [title, setTitle] = useState(editingEntry?.title || "")
+  const [content, setContent] = useState(editingEntry?.content || "")
+  const [entryType, setEntryType] = useState<'PRE_TRADE' | 'DURING_TRADE' | 'POST_TRADE' | 'GENERAL' | 'LESSON'>(editingEntry?.entryType || 'GENERAL')
+  const [mood, setMood] = useState<number | undefined>(editingEntry?.mood || undefined)
+  const [confidence, setConfidence] = useState<number | undefined>(editingEntry?.confidence || undefined)
+  const [fear, setFear] = useState<number | undefined>(editingEntry?.fear || undefined)
+  const [excitement, setExcitement] = useState<number | undefined>(editingEntry?.excitement || undefined)
+  const [tradeId, setTradeId] = useState<string | undefined>(editingEntry?.tradeId || undefined)
+  const [images, setImages] = useState<File[]>([])
+  const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  // Update form when editingEntry changes
+  useEffect(() => {
+    if (editingEntry) {
+      setTitle(editingEntry.title || "")
+      setContent(editingEntry.content || "")
+      setEntryType(editingEntry.entryType || 'GENERAL')
+      setMood(editingEntry.mood || undefined)
+      setConfidence(editingEntry.confidence || undefined)
+      setFear(editingEntry.fear || undefined)
+      setExcitement(editingEntry.excitement || undefined)
+      setTradeId(editingEntry.tradeId || undefined)
+      setImages([])
+      setImagePreviews([])
+    } else {
+      resetForm()
+    }
+  }, [editingEntry])
 
   const handleSave = async () => {
     if (!title.trim() || !content.trim()) {
@@ -81,8 +102,46 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
     setFear(undefined)
     setExcitement(undefined)
     setTradeId(undefined)
+    setImages([])
+    setImagePreviews([])
     setIsSubmitting(false)
     setSubmitError(null)
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    // Limit to 5 images total
+    const remainingSlots = 5 - images.length
+    const filesToAdd = files.slice(0, remainingSlots)
+
+    // Validate file types and sizes
+    const validFiles = filesToAdd.filter(file => {
+      const isValidType = file.type.startsWith('image/')
+      const isValidSize = file.size <= 5 * 1024 * 1024 // 5MB
+      return isValidType && isValidSize
+    })
+
+    if (validFiles.length !== filesToAdd.length) {
+      setSubmitError('Some files were skipped. Only images under 5MB are allowed.')
+    }
+
+    // Create previews
+    validFiles.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setImagePreviews(prev => [...prev, e.target?.result as string])
+      }
+      reader.readAsDataURL(file)
+    })
+
+    setImages(prev => [...prev, ...validFiles])
+  }
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index))
+    setImagePreviews(prev => prev.filter((_, i) => i !== index))
   }
 
   const handleClose = () => {
@@ -143,7 +202,9 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
-              <h2 className={`text-xl font-semibold ${themeClasses.text}`}>New Journal Entry</h2>
+              <h2 className={`text-xl font-semibold ${themeClasses.text}`}>
+                {editingEntry ? 'Edit Journal Entry' : 'New Journal Entry'}
+              </h2>
               <button
                 onClick={handleClose}
                 className={`${themeClasses.textSecondary} hover:${themeClasses.text} transition-colors`}
@@ -212,6 +273,53 @@ export default function NewEntryModal({ isOpen, onClose, onSave }: NewEntryModal
                   className={`w-full px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none ${themeClasses.input}`}
                   placeholder="Write your journal entry..."
                 />
+              </div>
+
+              <div>
+                <label className={`block text-sm ${themeClasses.textSecondary} mb-2`}>
+                  Images (Optional - Max 5 images, 5MB each)
+                </label>
+                
+                {images.length < 5 && (
+                  <div className="mb-3">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className={`inline-flex items-center space-x-2 px-4 py-2 rounded-lg border-2 border-dashed ${themeClasses.textSecondary} hover:${themeClasses.text} border-gray-400 hover:border-gray-300 transition-colors cursor-pointer`}
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span className="text-sm">Upload Images</span>
+                    </label>
+                  </div>
+                )}
+
+                {imagePreviews.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {imagePreviews.map((preview, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={preview}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-24 object-cover rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
