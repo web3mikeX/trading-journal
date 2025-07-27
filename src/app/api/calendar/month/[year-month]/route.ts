@@ -124,7 +124,8 @@ export async function GET(
       }
     })
 
-    // Add calendar entries that don't have trades but have notes/images
+    // Add calendar entries that don't have trades but have diary data (notes/images/mood)
+    // IMPORTANT: Never use stored P&L/trade data - always calculate from actual trades
     calendarEntries.forEach(entry => {
       const date = entry.date.toISOString().split('T')[0]
       if (!calendarData[date]) {
@@ -138,15 +139,20 @@ export async function GET(
           }
         }
 
-        calendarData[date] = {
-          date,
-          pnl: entry.dailyPnL || 0,
-          tradesCount: entry.tradesCount || 0,
-          winRate: entry.winRate || 0,
-          hasNotes: !!entry.notes,
-          hasImages: images.length > 0,
-          mood: entry.mood || undefined
+        // Only add entry if it has actual diary content (not just trading stats)
+        const hasDiaryContent = entry.notes || entry.mood || (images.length > 0)
+        if (hasDiaryContent) {
+          calendarData[date] = {
+            date,
+            pnl: 0, // Always 0 for dates with no trades - never use stored dailyPnL
+            tradesCount: 0, // Always 0 for dates with no trades - never use stored tradesCount
+            winRate: 0, // Always 0 for dates with no trades - never use stored winRate
+            hasNotes: !!entry.notes,
+            hasImages: images.length > 0,
+            mood: entry.mood || undefined
+          }
         }
+        // If entry has no diary content, don't include it in calendar display
       }
     })
 

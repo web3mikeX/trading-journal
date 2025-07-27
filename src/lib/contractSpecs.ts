@@ -283,15 +283,27 @@ export function calculateTradeFees(
   quantity: number, 
   broker: string = "TOPSTEP"
 ): FeeCalculation {
+  // Import currency utilities here to avoid circular dependencies
+  const roundCurrency = (amount: number): number => Math.round(amount * 100) / 100
+  const multiplyCurrency = (amount: number, multiplier: number): number => roundCurrency(amount * multiplier)
+  
   const fees = getBrokerFees(symbol, broker)
   
-  const entryFees = fees.entryFee * quantity
-  const exitFees = fees.exitFee * quantity
-  const commission = fees.roundTurnFee * quantity
-  const regulatoryFees = fees.regulatoryFees * quantity
-  const platformFees = (fees.platformFee || 0) * quantity
+  // Input validation
+  if (quantity <= 0) {
+    throw new Error('Quantity must be positive')
+  }
   
-  const totalFees = commission // Total round-turn fees
+  // Calculate individual fee components with precision using currency utilities
+  const entryFees = multiplyCurrency(fees.entryFee, quantity)
+  const exitFees = multiplyCurrency(fees.exitFee, quantity)
+  const commission = multiplyCurrency(fees.roundTurnFee, quantity)
+  const regulatoryFees = multiplyCurrency(fees.regulatoryFees, quantity)
+  const platformFees = multiplyCurrency(fees.platformFee || 0, quantity)
+  
+  // Use commission (roundTurnFee) as total for compatibility with existing logic
+  // Note: This represents the total cost per round-turn trade
+  const totalFees = commission
   
   return {
     totalFees,
@@ -300,7 +312,7 @@ export function calculateTradeFees(
     commission,
     regulatoryFees,
     platformFees,
-    feeBreakdown: `${broker}: $${fees.roundTurnFee}/contract × ${quantity} contracts = $${totalFees.toFixed(2)}`
+    feeBreakdown: `${broker}: $${fees.roundTurnFee.toFixed(2)}/contract × ${quantity} contracts = $${totalFees.toFixed(2)}`
   }
 }
 

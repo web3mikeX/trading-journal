@@ -42,7 +42,7 @@ function TradesContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
   const [selectedTrade, setSelectedTrade] = useState<any>(null)
-  const { trades, loading, error, addTrade, updateTrade, deleteTrade } = useTrades(user?.id || '')
+  const { trades, loading, error, addTrade, updateTrade, deleteTrade, fetchTrades } = useTrades(user?.id || '')
   const { stats } = useStats(user?.id || '')
 
   useEffect(() => {
@@ -409,9 +409,13 @@ function TradesContent() {
       <ImportTradesModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onImportComplete={() => {
-          // Refresh trades data after import
-          window.location.reload()
+        onImportComplete={async () => {
+          // Refresh trades data after import using the hook's fetch function
+          setIsImportModalOpen(false)
+          // Allow modal to close first, then refresh data gracefully
+          setTimeout(async () => {
+            await fetchTrades()
+          }, 300)
         }}
       />
     </>

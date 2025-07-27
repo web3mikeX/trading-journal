@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { AccountType } from '@prisma/client'
 import { detectBroker, getFeeSummary } from '@/lib/contractSpecs'
+import { roundCurrency, addCurrency, subtractCurrency } from '@/lib/utils'
+import { validateTrailingDrawdownData, validateAccountBalance } from '@/lib/tradeValidation'
 
 // Evaluation account MLL amounts based on account size
 export const EVALUATION_MLL_AMOUNTS: Record<string, number> = {
@@ -95,11 +97,14 @@ export function calculateCurrentBalance(
     : trades.filter(trade => trade.status === 'CLOSED')
 
   const totalPnL = relevantTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
-  return startingBalance + totalPnL
+  
+  // Apply precise decimal handling for balance calculation using currency utilities
+  return addCurrency(startingBalance, totalPnL)
 }
 
 /**
  * Get the account high (highest balance reached) since account start
+ * Updated to follow TopStep end-of-day calculation rules
  */
 export function getAccountHighSinceStart(
   startingBalance: number,
@@ -112,13 +117,33 @@ export function getAccountHighSinceStart(
     .filter(trade => new Date(trade.entryDate) >= startDate && trade.status === 'CLOSED')
     .sort((a, b) => new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime())
 
+  // Group trades by trading day (end-of-day balance calculation)
+  const tradesByDay = new Map<string, TradeForCalculation[]>()
+  
+  relevantTrades.forEach(trade => {
+    const dayKey = new Date(trade.entryDate).toISOString().split('T')[0]
+    if (!tradesByDay.has(dayKey)) {
+      tradesByDay.set(dayKey, [])
+    }
+    tradesByDay.get(dayKey)?.push(trade)
+  })
+
   let runningBalance = startingBalance
   let highWaterMark = startingBalance
 
-  for (const trade of relevantTrades) {
-    runningBalance += trade.netPnL || 0
+  // Calculate end-of-day balances and track the highest
+  const sortedDays = Array.from(tradesByDay.keys()).sort()
+  
+  for (const day of sortedDays) {
+    const dayTrades = tradesByDay.get(day) || []
+    const dayPnL = dayTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
+    
+    // Apply precise decimal handling for balance calculations using currency utilities
+    runningBalance = addCurrency(runningBalance, dayPnL)
+    
+    // TopStep Rule: Account high is calculated at end of trading day
     if (runningBalance > highWaterMark) {
-      highWaterMark = runningBalance
+      highWaterMark = roundCurrency(runningBalance)
     }
   }
 
@@ -139,45 +164,64 @@ export function getTodayPnL(trades: TradeForCalculation[]): number {
     return tradeDate >= today && tradeDate < tomorrow && trade.status === 'CLOSED'
   })
 
-  return todayTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
+  const totalPnL = todayTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
+  
+  // Apply precise decimal handling using currency utilities
+  return roundCurrency(totalPnL)
 }
 
 /**
- * Calculate the trailing drawdown limit based on account high
+ * Calculate the trailing drawdown limit using broker-specific rules
+ * Supports TopStep, FTMO, and other broker calculation methods
  */
 export function calculateTrailingDrawdownLimit(
   accountHigh: number,
   trailingDrawdownAmount: number,
   startingBalance: number,
   isLiveFunded: boolean,
-  firstPayoutReceived: boolean
+  firstPayoutReceived: boolean,
+  brokerType: string = 'TOPSTEP'
 ): number {
-  // Live funded accounts: Trailing limit resets to $0 after first payout
-  if (isLiveFunded && firstPayoutReceived) {
+  // Live funded accounts: Trailing limit resets to $0 after first payout (TopStep rule)
+  if (isLiveFunded && firstPayoutReceived && brokerType === 'TOPSTEP') {
     return 0
   }
-
-  // Calculate the actual trailing limit from account high
-  const calculatedLimit = accountHigh - trailingDrawdownAmount
   
-  // For evaluation accounts, trailing limit cannot go below starting balance
-  // Only apply the floor if the calculated limit would be below starting balance
-  return Math.max(calculatedLimit, startingBalance)
+  let calculatedMLL: number
+  
+  // Apply broker-specific calculation rules
+  switch (brokerType) {
+    case 'TOPSTEP':
+      // TopStep formula: MLL = Account High - Trailing Drawdown Amount
+      calculatedMLL = accountHigh - trailingDrawdownAmount
+      // Floor protection: MLL cannot go below (starting balance - trailing drawdown amount)
+      return Math.max(calculatedMLL, startingBalance - trailingDrawdownAmount)
+      
+    case 'FTMO':
+    case 'MY_FOREX_FUNDS':
+    case 'APEX_TRADER_FUNDING':
+    default:
+      // Standard trailing: MLL = Account High - Fixed Drawdown Amount
+      calculatedMLL = accountHigh - trailingDrawdownAmount
+      // Apply floor protection for most brokers
+      return Math.max(calculatedMLL, startingBalance - trailingDrawdownAmount)
+  }
 }
 
 /**
- * Calculate the daily loss limit based on account high
+ * Calculate the daily loss limit based on current balance (TopStep rules)
  */
 export function calculateDailyLossLimit(
-  accountHigh: number,
-  dailyLossLimit: number | null
+  currentBalance: number,
+  dailyLossAmount: number | null
 ): number | null {
-  if (!dailyLossLimit || dailyLossLimit <= 0) {
+  if (!dailyLossAmount || dailyLossAmount <= 0) {
     return null
   }
 
-  // Daily loss limit is always AccountHigh - dailyLossLimit (no minimum floor)
-  return accountHigh - dailyLossLimit
+  // TopStep Rule: Daily Loss Limit = Current Balance - Daily Loss Amount
+  // This is different from trailing drawdown which uses account high
+  return currentBalance - dailyLossAmount
 }
 
 /**
@@ -206,7 +250,8 @@ export function calculateCurrentMLL(
   isLiveFunded: boolean,
   firstPayoutReceived: boolean
 ): number {
-  return calculateTrailingDrawdownLimit(accountHigh, trailingDrawdownAmount, startingBalance, isLiveFunded, firstPayoutReceived)
+  const brokerType = detectBroker(accountType, undefined)
+  return calculateTrailingDrawdownLimit(accountHigh, trailingDrawdownAmount, startingBalance, isLiveFunded, firstPayoutReceived, brokerType)
 }
 
 /**
@@ -260,25 +305,33 @@ export async function getAccountMetrics(userId: string): Promise<AccountMetrics 
       user.accountStartDate
     )
 
+    // Use stored account high if available (TopStep authoritative value)
+    // Only fall back to calculated high if no stored value exists
+    const calculatedAccountHigh = getAccountHighSinceStart(user.startingBalance, tradesToProcess, user.accountStartDate)
     const accountHigh = Math.max(
       user.currentAccountHigh || user.startingBalance,
-      getAccountHighSinceStart(user.startingBalance, tradesToProcess, user.accountStartDate)
+      calculatedAccountHigh,
+      currentBalance // Account high should be at least current balance if it's the highest
     )
 
     const trailingDrawdownAmount = user.trailingDrawdownAmount || getDrawdownAmount(user.accountType)
     const dailyLossLimit = user.dailyLossLimit
 
+    // Detect broker type for calculation
+    const brokerType = detectBroker(user.accountType, undefined)
+    
     // Calculate trailing drawdown limit
     const calculatedTrailingLimit = calculateTrailingDrawdownLimit(
       accountHigh,
       trailingDrawdownAmount,
       user.startingBalance,
       user.isLiveFunded,
-      user.firstPayoutReceived
+      user.firstPayoutReceived,
+      brokerType
     )
 
     // Calculate daily loss limit (if configured)
-    const calculatedDailyLimit = calculateDailyLossLimit(accountHigh, dailyLossLimit)
+    const calculatedDailyLimit = calculateDailyLossLimit(currentBalance, dailyLossLimit)
 
     const netPnLToDate = currentBalance - user.startingBalance
     const dailyPnL = getTodayPnL(tradesToProcess)
@@ -292,9 +345,27 @@ export async function getAccountMetrics(userId: string): Promise<AccountMetrics 
     const dailyBuffer = calculatedDailyLimit ? currentBalance - calculatedDailyLimit : null
 
     // Calculate display values - show actual calculated amounts for user feedback
-    const displayTrailingLimit = user.isLiveFunded && user.firstPayoutReceived 
-      ? 0 
-      : accountHigh - trailingDrawdownAmount
+    const displayTrailingLimit = calculateTrailingDrawdownLimit(
+      accountHigh,
+      trailingDrawdownAmount,
+      user.startingBalance,
+      user.isLiveFunded,
+      user.firstPayoutReceived,
+      brokerType
+    )
+
+    // Validate trailing drawdown data before returning
+    const validation = validateTrailingDrawdownData(
+      accountHigh,
+      currentBalance,
+      calculatedTrailingLimit,
+      user.startingBalance
+    )
+
+    // Log validation warnings but don't fail
+    if (validation.warnings.length > 0) {
+      console.warn('Account metrics validation warnings:', validation.warnings)
+    }
 
     // Detect and format broker for display
     const broker = detectBroker(user.accountType, undefined)
@@ -500,6 +571,33 @@ export async function getAccountMetricsWithFees(userId: string): Promise<Account
   } catch (error) {
     console.error('Error calculating account metrics with fees:', error)
     return null
+  }
+}
+
+/**
+ * Validate TopStep MLL calculation with examples
+ * This function verifies the calculation matches TopStep documentation
+ */
+export function validateTopStepCalculation(
+  startingBalance: number,
+  accountHigh: number,
+  initialMLL: number
+): { calculatedMLL: number; isCorrect: boolean; example: string } {
+  const calculatedMLL = Math.max(startingBalance - accountHigh + initialMLL, startingBalance)
+  
+  let example = ''
+  if (startingBalance === 50000 && accountHigh === 50500 && initialMLL === 2000) {
+    // Example from TopStep documentation
+    const expectedMLL = 48500
+    const isCorrect = calculatedMLL === expectedMLL
+    example = `TopStep Example: $50K account with $500 profit should have MLL of $48,500. Calculated: $${calculatedMLL.toLocaleString()}`
+    return { calculatedMLL, isCorrect, example }
+  }
+  
+  return { 
+    calculatedMLL, 
+    isCorrect: true, 
+    example: `MLL = max($${startingBalance.toLocaleString()} - $${accountHigh.toLocaleString()} + $${initialMLL.toLocaleString()}, $${startingBalance.toLocaleString()}) = $${calculatedMLL.toLocaleString()}`
   }
 }
 

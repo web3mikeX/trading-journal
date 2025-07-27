@@ -211,7 +211,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         
         // Total fees calculation - if no commission columns exist, use a standard commission estimate
         const totalFees = commission + fees + exchange_fees + clearing_fees + regulatory_fees
-        const estimatedCommission = totalFees === 0 ? 1.34 : 0 // Estimate $1.34 commission for Tradovate (typical rate)
+        const estimatedCommission = totalFees === 0 ? (1.34 * quantity) : 0 // Estimate $1.34 per contract for Tradovate
         const finalTotalFees = totalFees + estimatedCommission
         const netPnL = grossPnL - finalTotalFees
         
@@ -394,7 +394,7 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
         if (pnlString) {
           const grossPnL = parsePnL(pnlString)
           const commission = parseFloat(findColumnValue(row, headers, ['commission', 'commissions', 'comm', 'fees', 'fee']) || '0')
-          const estimatedCommission = commission === 0 ? 1.34 : 0 // Estimate $1.34 commission if no commission data
+          const estimatedCommission = commission === 0 ? (1.34 * trade.quantity) : 0 // Estimate $1.34 per contract if no commission data
           const finalTotalFees = commission + estimatedCommission
           const netPnL = grossPnL - finalTotalFees
           

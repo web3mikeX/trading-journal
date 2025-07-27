@@ -60,7 +60,9 @@
       "Bash(cmd /c:*)",
       "Bash(rd:*)",
       "Bash(tasklist:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(/dev/null)",
+      "Bash(wmic process:*)"
     ],
     "deny": []
   }

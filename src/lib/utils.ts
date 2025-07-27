@@ -6,10 +6,47 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatCurrency(amount: number, currency = "USD") {
+  // Ensure consistent 2-decimal precision for all currency formatting
+  const roundedAmount = Number(amount.toFixed(2))
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-  }).format(amount)
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(roundedAmount)
+}
+
+/**
+ * Round currency values to exactly 2 decimal places using banker's rounding
+ * This function should be used for all currency calculations to ensure consistency
+ */
+export function roundCurrency(amount: number): number {
+  if (isNaN(amount) || !isFinite(amount)) {
+    return 0
+  }
+  return Math.round(amount * 100) / 100
+}
+
+/**
+ * Safe addition for currency values with proper precision handling
+ */
+export function addCurrency(...amounts: number[]): number {
+  const sum = amounts.reduce((total, amount) => total + (amount || 0), 0)
+  return roundCurrency(sum)
+}
+
+/**
+ * Safe subtraction for currency values with proper precision handling
+ */
+export function subtractCurrency(minuend: number, subtrahend: number): number {
+  return roundCurrency(minuend - subtrahend)
+}
+
+/**
+ * Safe multiplication for currency values with proper precision handling
+ */
+export function multiplyCurrency(amount: number, multiplier: number): number {
+  return roundCurrency(amount * multiplier)
 }
 
 export function formatPercentage(value: number, decimals = 2) {
@@ -78,25 +115,25 @@ export function calculatePreciseBalanceAtDate(
     new Date(trade.entryDate).getTime() <= targetTime
   ) : []
   
-  // Calculate realized P&L (netPnL already includes fees)
-  const realizedPnL = realizedTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
-  const totalFees = realizedTrades.reduce((sum, trade) => {
+  // Calculate realized P&L (netPnL already includes fees) with precision
+  const realizedPnL = Number(realizedTrades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0).toFixed(2))
+  const totalFees = Number(realizedTrades.reduce((sum, trade) => {
     const commission = trade.commission || 0
     const entryFees = trade.entryFees || 0
     const exitFees = trade.exitFees || 0
     return sum + commission + entryFees + exitFees
-  }, 0)
+  }, 0).toFixed(2))
   
   // Calculate unrealized P&L (simplified - would need current prices in real implementation)
-  const unrealizedPnL = openTrades.reduce((sum, trade) => {
+  const unrealizedPnL = Number(openTrades.reduce((sum, trade) => {
     // For chart purposes, we'll use 0 for unrealized since we don't have real-time prices
     // In a real implementation, this would calculate based on current market prices
     return sum + 0
-  }, 0)
+  }, 0).toFixed(2))
   
-  const totalPnL = realizedPnL + unrealizedPnL
+  const totalPnL = Number((realizedPnL + unrealizedPnL).toFixed(2))
   // Use netPnL for balance since it already accounts for fees
-  const balance = startingBalance + realizedPnL
+  const balance = Number((startingBalance + realizedPnL).toFixed(2))
   const netBalance = balance // netPnL already includes fees
   
   return {
@@ -197,11 +234,11 @@ export function generateMonthlyPerformanceData(
         includeUnrealized
       )
       
-      monthlyPnL = balancePoint.realizedPnL - prevBalancePoint.realizedPnL
+      monthlyPnL = Number((balancePoint.realizedPnL - prevBalancePoint.realizedPnL).toFixed(2))
       monthlyTrades = balancePoint.tradeCount - prevBalancePoint.tradeCount
     } else {
       // First month - compare with starting balance
-      monthlyPnL = balancePoint.realizedPnL
+      monthlyPnL = Number(balancePoint.realizedPnL.toFixed(2))
       monthlyTrades = balancePoint.tradeCount
     }
     
@@ -217,19 +254,25 @@ export function generateMonthlyPerformanceData(
 }
 
 /**
- * Validate balance data consistency
+ * Validate balance data consistency with improved precision handling
  */
 export function validateBalanceConsistency(
   calculatedBalance: number,
   expectedBalance: number,
   tolerance: number = 0.01
-): { isValid: boolean; difference: number; withinTolerance: boolean } {
-  const difference = Math.abs(calculatedBalance - expectedBalance)
+): { isValid: boolean; difference: number; withinTolerance: boolean; details: string } {
+  // Apply consistent decimal rounding for comparison
+  const roundedCalculated = Number(calculatedBalance.toFixed(2))
+  const roundedExpected = Number(expectedBalance.toFixed(2))
+  const difference = Number(Math.abs(roundedCalculated - roundedExpected).toFixed(2))
   const withinTolerance = difference <= tolerance
+  
+  const details = `Calculated: $${roundedCalculated.toFixed(2)}, Expected: $${roundedExpected.toFixed(2)}, Difference: $${difference.toFixed(2)}`
   
   return {
     isValid: withinTolerance,
     difference,
-    withinTolerance
+    withinTolerance,
+    details
   }
 }

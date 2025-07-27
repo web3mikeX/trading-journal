@@ -8,7 +8,9 @@ import {
   detectBroker,
   getBrokerFees
 } from '@/lib/contractSpecs'
+import { roundCurrency, addCurrency, subtractCurrency, multiplyCurrency } from '@/lib/utils'
 import { generateTradeHash, detectDuplicateTrade } from '@/lib/duplicateDetection'
+import { validateTradeData } from '@/lib/tradeValidation'
 
 const TradeSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -34,7 +36,7 @@ const TradeSchema = z.object({
   dataSource: z.string().default('manual'),
 })
 
-// Calculate P&L for a trade with broker-specific fees
+// Calculate P&L for a trade with broker-specific fees and precise decimal handling
 function calculatePnL(trade: any, accountType?: string, applyAutoFees: boolean = true) {
   if (!trade.exitPrice || !trade.entryPrice) {
     return { 
@@ -47,33 +49,44 @@ function calculatePnL(trade: any, accountType?: string, applyAutoFees: boolean =
     }
   }
 
+  // Input validation
+  if (trade.entryPrice <= 0 || trade.exitPrice <= 0 || trade.quantity <= 0) {
+    throw new Error('Entry price, exit price, and quantity must be positive')
+  }
+
   // Get contract specifications
   const contractMultiplier = getContractMultiplier(trade.symbol, trade.market)
   const contractType = getContractType(trade.symbol, trade.market)
 
-  // Calculate points difference
+  // Calculate points difference with proper decimal handling
   const pointsDifference = trade.side === 'LONG' 
-    ? (trade.exitPrice - trade.entryPrice)
-    : (trade.entryPrice - trade.exitPrice)
+    ? roundCurrency(trade.exitPrice - trade.entryPrice) // Use currency rounding for consistency
+    : roundCurrency(trade.entryPrice - trade.exitPrice)
 
   // Apply contract multiplier to calculate gross PnL
-  const grossPnL = pointsDifference * trade.quantity * contractMultiplier
+  const grossPnL = multiplyCurrency(pointsDifference * trade.quantity, contractMultiplier)
 
-  // Calculate fees - use existing fees if present, or auto-calculate
-  let totalFees = trade.entryFees + trade.exitFees + trade.commission + trade.swap
+  // Calculate fees with proper null handling using currency utilities
+  const entryFees = Number(trade.entryFees) || 0
+  const exitFees = Number(trade.exitFees) || 0
+  const commission = Number(trade.commission) || 0
+  const swap = Number(trade.swap) || 0
+  
+  let totalFees = addCurrency(entryFees, exitFees, commission, swap)
   let feeCalculation = null
   
   // If no fees are set and auto-calculation is enabled, calculate broker-specific fees
   if (totalFees === 0 && applyAutoFees && (trade.market === 'FUTURES' || trade.symbol.match(/^(MNQ|MES|MYM|NQ|ES|YM)/))) {
     const broker = detectBroker(accountType, trade.dataSource)
     feeCalculation = calculateTradeFees(trade.symbol, trade.quantity, broker)
-    totalFees = feeCalculation.totalFees
+    totalFees = roundCurrency(feeCalculation.totalFees)
   }
 
-  const netPnL = grossPnL - totalFees
+  const netPnL = subtractCurrency(grossPnL, totalFees)
 
-  const totalInvested = trade.entryPrice * trade.quantity * contractMultiplier
-  const returnPercent = totalInvested > 0 ? (netPnL / totalInvested) * 100 : 0
+  // Calculate return percentage with proper precision
+  const totalInvested = multiplyCurrency(trade.entryPrice * trade.quantity, contractMultiplier)
+  const returnPercent = totalInvested > 0 ? roundCurrency((netPnL / totalInvested) * 100) : 0
 
   return { 
     grossPnL, 
@@ -157,8 +170,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate trade financial data for consistency and constraints
+    const tradeValidation = validateTradeData({
+      entryPrice: validatedData.entryPrice,
+      exitPrice: validatedData.exitPrice,
+      quantity: validatedData.quantity,
+      entryFees: validatedData.entryFees,
+      exitFees: validatedData.exitFees,
+      commission: validatedData.commission,
+      swap: validatedData.swap,
+      stopLoss: validatedData.stopLoss,
+      takeProfit: validatedData.takeProfit,
+      riskAmount: validatedData.riskAmount
+    })
+
+    if (!tradeValidation.isValid) {
+      return NextResponse.json({
+        error: 'Trade validation failed',
+        details: tradeValidation.errors,
+        warnings: tradeValidation.warnings
+      }, { status: 400 })
+    }
+
+    // Use sanitized data for calculation
+    const sanitizedTradeData = { ...validatedData, ...tradeValidation.sanitizedData }
+
     // Calculate P&L if exit data is provided
-    const pnlData = calculatePnL(validatedData)
+    const pnlData = calculatePnL(sanitizedTradeData)
 
     // Generate trade hash (add timestamp for forced duplicates to make unique)
     const baseTradeData = {

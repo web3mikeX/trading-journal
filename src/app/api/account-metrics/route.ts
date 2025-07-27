@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAccountMetrics, getAccountMetricsWithFees } from '@/lib/trailingDrawdown'
+import { CachedCalculations } from '@/lib/calculationCache'
 
 // GET /api/account-metrics - Get real-time account metrics including trailing drawdown
 export async function GET(request: NextRequest) {
@@ -11,7 +12,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
-    const metrics = await getAccountMetrics(userId)
+    // Use cached calculation for better performance
+    const forceRefresh = searchParams.get('refresh') === 'true'
+    const metrics = await CachedCalculations.getAccountMetricsWithCache(userId, forceRefresh)
 
     if (!metrics) {
       return NextResponse.json({ 

@@ -154,7 +154,8 @@ export async function POST(
     const losingTrades = closedTrades.filter(trade => (trade.netPnL || 0) < 0)
     const winRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0
 
-    // Upsert calendar entry
+    // Upsert calendar entry - ONLY store diary content (notes/mood/images)
+    // NEVER store calculated trading stats to prevent orphaned data
     const calendarEntry = await prisma.calendarEntry.upsert({
       where: {
         userId_date: {
@@ -166,11 +167,12 @@ export async function POST(
         notes: validatedData.notes,
         mood: validatedData.mood,
         images: validatedData.images ? JSON.stringify(validatedData.images) : null,
-        dailyPnL,
-        tradesCount: trades.length,
-        winningTrades: winningTrades.length,
-        losingTrades: losingTrades.length,
-        winRate,
+        // Clear any stored trading stats to prevent orphaned data
+        dailyPnL: null,
+        tradesCount: 0,
+        winningTrades: 0,
+        losingTrades: 0,
+        winRate: null,
         updatedAt: new Date()
       },
       create: {
@@ -179,11 +181,12 @@ export async function POST(
         notes: validatedData.notes,
         mood: validatedData.mood,
         images: validatedData.images ? JSON.stringify(validatedData.images) : null,
-        dailyPnL,
-        tradesCount: trades.length,
-        winningTrades: winningTrades.length,
-        losingTrades: losingTrades.length,
-        winRate
+        // Never store calculated trading stats - always calculate from actual trades
+        dailyPnL: null,
+        tradesCount: 0,
+        winningTrades: 0,
+        losingTrades: 0,
+        winRate: null
       }
     })
 
