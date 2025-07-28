@@ -329,7 +329,7 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
                       whileTap={{ scale: 0.98 }}
                       onClick={() => onDayClick(calendarDay.date, dayData)}
                       className={`
-                        relative p-2 sm:p-3 min-h-16 sm:min-h-20 h-auto border rounded-lg transition-all duration-200
+                        relative p-2 sm:p-3 h-24 border rounded-lg transition-all duration-200 flex flex-col justify-between
                         ${calendarDay.isCurrentMonth ? 'cursor-pointer hover:shadow-md' : 'opacity-50 cursor-default'}
                         ${calendarDay.isToday ? 'ring-2 ring-blue-500' : ''}
                         ${hasData ? getDayBackgroundColor(pnl, true) : `${themeClasses.surface} border-gray-200`}
@@ -337,14 +337,14 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
                       `}
                       disabled={!calendarDay.isCurrentMonth}
                     >
-                      {/* Day Number */}
-                      <div className={`text-sm font-medium ${calendarDay.isToday ? 'text-blue-600' : ''}`}>
+                      {/* Day Number - Top */}
+                      <div className={`text-sm font-medium ${calendarDay.isToday ? 'text-blue-600' : ''} flex-shrink-0`}>
                         {calendarDay.day}
                       </div>
                       
-                      {/* P&L and Indicators */}
-                      {hasData && (
-                        <div className="mt-1 space-y-1 min-w-0">
+                      {/* P&L and Indicators - Bottom */}
+                      {hasData ? (
+                        <div className="flex-1 flex flex-col justify-end space-y-1 min-w-0 overflow-hidden">
                           {/* P&L Amount */}
                           <div className={`text-xs font-medium truncate ${getPnLColor(pnl)}`} title={formatCurrency(pnl)}>
                             {Math.abs(pnl) >= 1000 ? 
@@ -355,32 +355,34 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
                           
                           {/* Trade Count */}
                           <div className={`text-xs truncate ${themeClasses.textSecondary}`} title={`${dayData.tradesCount} trades`}>
-                            {dayData.tradesCount > 9 ? `${dayData.tradesCount} trades` : `${dayData.tradesCount} ${dayData.tradesCount === 1 ? 'trade' : 'trades'}`}
+                            {dayData.tradesCount > 9 ? `${dayData.tradesCount}` : `${dayData.tradesCount} ${dayData.tradesCount === 1 ? 'trade' : 'trades'}`}
                           </div>
                           
                           {/* Indicators */}
-                          <div className="flex items-center justify-center space-x-1 flex-wrap">
+                          <div className="flex items-center justify-center space-x-1">
                             {dayData.hasNotes && (
-                              <NotebookPenIcon className="w-3 h-3 text-blue-500" />
+                              <NotebookPenIcon className="w-3 h-3 text-blue-500 flex-shrink-0" />
                             )}
                             {dayData.hasImages && (
-                              <ImageIcon className="w-3 h-3 text-purple-500" />
+                              <ImageIcon className="w-3 h-3 text-purple-500 flex-shrink-0" />
                             )}
                             {pnl > 0 && (
-                              <TrendingUpIcon className="w-3 h-3 text-green-500" />
+                              <TrendingUpIcon className="w-3 h-3 text-green-500 flex-shrink-0" />
                             )}
                             {pnl < 0 && (
-                              <TrendingDownIcon className="w-3 h-3 text-red-500" />
+                              <TrendingDownIcon className="w-3 h-3 text-red-500 flex-shrink-0" />
                             )}
                           </div>
                         </div>
+                      ) : (
+                        <div className="flex-1"></div>
                       )}
                     </motion.button>
                   )
                 })}
                 
                 {/* Weekly P&L */}
-                <div className={`hidden lg:flex items-center justify-center p-2 sm:p-3 min-h-16 sm:min-h-20 h-auto ${themeClasses.surface} border ${themeClasses.border} rounded-lg ml-6 border-l-4 border-l-blue-500`}>
+                <div className={`hidden lg:flex items-center justify-center p-2 sm:p-3 h-24 ${themeClasses.surface} border ${themeClasses.border} rounded-lg border-l-4 border-l-blue-500`}>
                   <div className="text-center">
                     <div className={`text-xs ${themeClasses.textSecondary} mb-1`}>Week</div>
                     <div className={`text-sm font-bold ${getPnLColor(getWeeklyPnL(weekIndex * 7))}`}>

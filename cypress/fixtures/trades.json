@@ -1,0 +1,76 @@
+{
+  "trades": [
+    {
+      "id": "test-futures-nq",
+      "symbol": "NQ",
+      "market": "FUTURES",
+      "side": "LONG",
+      "entryPrice": 20000,
+      "exitPrice": 20100,
+      "quantity": 1,
+      "entryDate": "2025-01-15T09:30:00Z",
+      "exitDate": "2025-01-15T15:30:00Z",
+      "status": "CLOSED",
+      "netPnL": 500,
+      "contractMultiplier": 20
+    },
+    {
+      "id": "test-stocks-aapl",
+      "symbol": "AAPL", 
+      "market": "STOCKS",
+      "side": "LONG",
+      "entryPrice": 150,
+      "exitPrice": 155,
+      "quantity": 100,
+      "entryDate": "2025-01-16T09:30:00Z",
+      "exitDate": "2025-01-16T15:30:00Z",
+      "status": "CLOSED",
+      "netPnL": 500
+    },
+    {
+      "id": "test-forex-eurusd",
+      "symbol": "EURUSD",
+      "market": "FOREX",
+      "side": "SHORT", 
+      "entryPrice": 1.0800,
+      "exitPrice": 1.0750,
+      "quantity": 10000,
+      "entryDate": "2025-01-17T08:00:00Z",
+      "exitDate": "2025-01-17T16:00:00Z",
+      "status": "CLOSED",
+      "netPnL": 500
+    },
+    {
+      "id": "test-crypto-btc",
+      "symbol": "BTCUSD",
+      "market": "CRYPTO",
+      "side": "LONG",
+      "entryPrice": 45000,
+      "exitPrice": 46000,
+      "quantity": 0.1,
+      "entryDate": "2025-01-18T00:00:00Z", 
+      "exitDate": "2025-01-18T12:00:00Z",
+      "status": "CLOSED",
+      "netPnL": 100
+    },
+    {
+      "id": "test-options-aapl-call",
+      "symbol": "AAPL240315C150",
+      "market": "OPTIONS",
+      "side": "LONG",
+      "entryPrice": 5.50,
+      "exitPrice": 7.00,
+      "quantity": 10,
+      "entryDate": "2025-01-19T09:30:00Z",
+      "exitDate": "2025-01-19T15:30:00Z", 
+      "status": "CLOSED",
+      "netPnL": 1500
+    }
+  ],
+  "stats": {
+    "totalPnL": 3100,
+    "winRate": 100,
+    "totalTrades": 5,
+    "profitFactor": 5.0
+  }
+}

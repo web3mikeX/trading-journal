@@ -17,10 +17,12 @@ import {
   Trash2,
   Loader2,
   ArrowUpCircle,
-  ArrowDownCircle
+  ArrowDownCircle,
+  BarChart3
 } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
+import TradeChart from "@/components/TradeChart"
 
 interface Trade {
   id: string
@@ -86,7 +88,7 @@ export default function TradeDetailModal({
   const [trade, setTrade] = useState<Trade | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'performance' | 'risk' | 'execution' | 'contract' | 'journal'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'performance' | 'risk' | 'execution' | 'contract' | 'journal' | 'chart'>('overview')
 
   // Fetch trade details when modal opens
   useEffect(() => {
@@ -184,6 +186,7 @@ export default function TradeDetailModal({
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
+    { id: 'chart', label: 'Chart', icon: BarChart3 },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'execution', label: 'Execution', icon: Target },
     { id: 'contract', label: 'Contract', icon: DollarSign },
@@ -478,6 +481,25 @@ export default function TradeDetailModal({
                                 </div>
                               </div>
                             )}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'chart' && (
+                        <div className="space-y-6">
+                          {/* Chart Section */}
+                          <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+                            <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Trade Chart Visualization</h3>
+                            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                              <p className="text-sm text-blue-700 dark:text-blue-300">
+                                <strong>TradesViz Integration:</strong> Interactive chart showing price action with entry/exit markers
+                              </p>
+                            </div>
+                            <TradeChart
+                              trade={trade}
+                              width="100%"
+                              height="500px"
+                            />
                           </div>
                         </div>
                       )}
