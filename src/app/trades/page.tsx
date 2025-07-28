@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { motion } from "framer-motion"
@@ -13,6 +13,7 @@ import {
   TrendingDownIcon,
   EditIcon,
   TrashIcon,
+  EyeIcon,
   FileTextIcon,
   FileSpreadsheetIcon,
   UploadIcon
@@ -25,6 +26,21 @@ import { useStats } from "@/hooks/useStats"
 import AddTradeModal from "@/components/AddTradeModal"
 import EditTradeModal from "@/components/EditTradeModal"
 import ImportTradesModal from "@/components/ImportTradesModal"
+import PostImportJournalModal from "@/components/PostImportJournalModal"
+import dynamic from 'next/dynamic'
+
+// Lazy load TradeDetailModal to improve initial page load
+const TradeDetailModal = dynamic(() => import("@/components/TradeDetailModal"), {
+  loading: () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading trade details...</p>
+      </div>
+    </div>
+  ),
+  ssr: false
+})
 import ExportButton from "@/components/ExportButton"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
@@ -41,9 +57,42 @@ function TradesContent() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isImportModalOpen, setIsImportModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [isPostImportJournalOpen, setIsPostImportJournalOpen] = useState(false)
   const [selectedTrade, setSelectedTrade] = useState<any>(null)
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
+  const [importSummary, setImportSummary] = useState({ count: 0, summary: '' })
   const { trades, loading, error, addTrade, updateTrade, deleteTrade, fetchTrades } = useTrades(user?.id || '')
   const { stats } = useStats(user?.id || '')
+
+  // All useMemo and useCallback hooks must be at the top before any conditional logic
+  const filteredTrades = useMemo(() => {
+    return trades
+      .filter(trade => 
+        (filterStatus === "ALL" || trade.status === filterStatus) &&
+        (searchTerm === "" || trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+      .sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+  }, [trades, filterStatus, searchTerm])
+
+  const { totalPnL, winningTrades, totalClosedTrades, winRate } = useMemo(() => {
+    const totalPnL = trades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
+    const winningTrades = trades.filter(trade => (trade.netPnL || 0) > 0).length
+    const totalClosedTrades = trades.filter(trade => trade.status === "CLOSED").length
+    const winRate = totalClosedTrades > 0 ? (winningTrades / totalClosedTrades) * 100 : 0
+    
+    return { totalPnL, winningTrades, totalClosedTrades, winRate }
+  }, [trades])
+
+  const handleViewTrade = useCallback((trade: any) => {
+    setSelectedTradeId(trade.id)
+    setIsDetailModalOpen(true)
+  }, [])
+
+  const handleEditTrade = useCallback((trade: any) => {
+    setSelectedTrade(trade)
+    setIsEditModalOpen(true)
+  }, [])
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -83,18 +132,6 @@ function TradesContent() {
     )
   }
 
-  const filteredTrades = trades
-    .filter(trade => 
-      (filterStatus === "ALL" || trade.status === filterStatus) &&
-      (searchTerm === "" || trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-    .sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
-
-  const totalPnL = trades.reduce((sum, trade) => sum + (trade.netPnL || 0), 0)
-  const winningTrades = trades.filter(trade => (trade.netPnL || 0) > 0).length
-  const totalClosedTrades = trades.filter(trade => trade.status === "CLOSED").length
-  const winRate = totalClosedTrades > 0 ? (winningTrades / totalClosedTrades) * 100 : 0
-
   const handleAddTrade = async (tradeData: any) => {
     try {
       await addTrade(tradeData)
@@ -102,11 +139,6 @@ function TradesContent() {
       console.error('Failed to add trade:', error)
       throw error
     }
-  }
-
-  const handleEditTrade = (trade: any) => {
-    setSelectedTrade(trade)
-    setIsEditModalOpen(true)
   }
 
   const handleUpdateTrade = async (tradeId: string, updates: any) => {
@@ -363,6 +395,13 @@ function TradesContent() {
                           <td className="py-4 px-4">
                             <div className="flex items-center space-x-2">
                               <button
+                                onClick={() => handleViewTrade(trade)}
+                                className={`p-1 ${themeClasses.textMuted} hover:text-green-400 transition-colors`}
+                                title="View trade details"
+                              >
+                                <EyeIcon className="w-4 h-4" />
+                              </button>
+                              <button
                                 onClick={() => handleEditTrade(trade)}
                                 className={`p-1 ${themeClasses.textMuted} hover:text-blue-400 transition-colors`}
                                 title="Edit trade"
@@ -409,14 +448,63 @@ function TradesContent() {
       <ImportTradesModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onImportComplete={async () => {
-          // Refresh trades data after import using the hook's fetch function
+        onImportComplete={(importedCount?: number, summary?: string) => {
+          console.log('Import completed, showing journal modal...', { importedCount, summary })
+          
+          // Store import summary for journal modal
+          setImportSummary({ 
+            count: importedCount || 0, 
+            summary: summary || `Successfully imported ${importedCount || 0} trades` 
+          })
+          
+          // Close import modal first
           setIsImportModalOpen(false)
-          // Allow modal to close first, then refresh data gracefully
-          setTimeout(async () => {
-            await fetchTrades()
-          }, 300)
+          
+          // Show journal modal immediately
+          setTimeout(() => {
+            console.log('Setting journal modal to open...')
+            setIsPostImportJournalOpen(true)
+          }, 100)
+          
+          // Refresh trades data after a delay to avoid interfering with modal
+          setTimeout(() => {
+            console.log('Refreshing trades...')
+            fetchTrades().catch(console.error)
+          }, 1500)
         }}
+      />
+
+      <TradeDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false)
+          setSelectedTradeId(null)
+        }}
+        tradeId={selectedTradeId}
+        onEdit={(tradeId) => {
+          const trade = trades.find(t => t.id === tradeId)
+          if (trade) {
+            setSelectedTrade(trade)
+            setIsDetailModalOpen(false)
+            setIsEditModalOpen(true)
+          }
+        }}
+        onDelete={async (tradeId) => {
+          await handleDeleteTrade(tradeId)
+          setIsDetailModalOpen(false)
+          setSelectedTradeId(null)
+        }}
+      />
+
+      <PostImportJournalModal
+        isOpen={isPostImportJournalOpen}
+        onClose={() => {
+          setIsPostImportJournalOpen(false)
+          // Ensure trades are refreshed when journal modal closes
+          fetchTrades().catch(console.error)
+        }}
+        importCount={importSummary.count}
+        importSummary={importSummary.summary}
       />
     </>
   )

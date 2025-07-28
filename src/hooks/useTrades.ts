@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Trade {
   id: string
@@ -20,20 +20,31 @@ export function useTrades(userId: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchTrades = async () => {
-    if (!userId) return
+  const fetchTrades = useCallback(async () => {
+    if (!userId) {
+      console.log('useTrades: No userId provided')
+      return
+    }
 
     try {
       setLoading(true)
       setError(null)
+      console.log('useTrades: Fetching trades for userId:', userId)
       
-      const response = await fetch(`/api/trades?userId=${userId}`)
+      const response = await fetch(`/api/trades?userId=${userId}`, {
+        headers: {
+          'Cache-Control': 'max-age=60' // 1 minute cache
+        }
+      })
+      
+      console.log('useTrades: Response status:', response.status, response.ok)
       
       if (!response.ok) {
         throw new Error('Failed to fetch trades')
       }
 
       const data = await response.json()
+      console.log('useTrades: Raw data received:', data.length, 'trades')
       
       // Convert date strings back to Date objects
       const tradesWithDates = data.map((trade: any) => ({
@@ -42,13 +53,16 @@ export function useTrades(userId: string) {
         exitDate: trade.exitDate ? new Date(trade.exitDate) : undefined
       }))
       
+      console.log('useTrades: Setting trades with dates:', tradesWithDates.length)
       setTrades(tradesWithDates)
     } catch (err) {
+      console.error('useTrades: Error fetching trades:', err)
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
+      console.log('useTrades: Setting loading to false')
       setLoading(false)
     }
-  }
+  }, [userId])
 
   useEffect(() => {
     fetchTrades()

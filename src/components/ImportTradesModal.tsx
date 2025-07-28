@@ -21,7 +21,7 @@ import * as XLSX from 'xlsx'
 interface ImportTradesModalProps {
   isOpen: boolean
   onClose: () => void
-  onImportComplete: () => void
+  onImportComplete: (importedCount?: number, summary?: string) => void
 }
 
 interface ParsedTrade {
@@ -728,7 +728,9 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
           message: `Successfully imported ${importedCount} trade${importedCount !== 1 ? 's' : ''}.`,
           duration: 4000
         })
-        onImportComplete()
+        
+        const summary = `Successfully imported ${importedCount} trade${importedCount !== 1 ? 's' : ''} from ${file?.name || 'CSV file'}`
+        onImportComplete(importedCount, summary)
         handleClose()
       }
     } catch (error) {
@@ -1302,7 +1304,8 @@ export default function ImportTradesModal({ isOpen, onClose, onImportComplete }:
                             duration: 5000
                           })
                           
-                          onImportComplete()
+                          const summary = `Imported ${importedCount} trade${importedCount !== 1 ? 's' : ''}, skipped ${skippedCount} duplicate${skippedCount !== 1 ? 's' : ''}`
+                          onImportComplete(importedCount, summary)
                           handleClose()
                         } catch (error) {
                           console.error('Duplicate import error:', error)
