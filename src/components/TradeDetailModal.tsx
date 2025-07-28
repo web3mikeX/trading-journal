@@ -388,6 +388,100 @@ export default function TradeDetailModal({
                         </div>
                       )}
 
+                      {false && (
+                        <div className="space-y-6">
+                          {/* Chart Section */}
+                          <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+                            <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Price Chart</h3>
+                            {(() => {
+                              // Use trade symbol directly for better futures support
+                              const chartSymbol = trade.symbol
+                              
+                              return (
+                                <div className="w-full">
+                                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                                      <strong>Chart Info:</strong> Showing {chartSymbol} with automatic provider fallbacks (TradingView → Lightweight Charts → Yahoo Finance)
+                                    </p>
+                                  </div>
+                                  <UnifiedChart
+                                    symbol={chartSymbol}
+                                    width={700}
+                                    height={500}
+                                    interval="D"
+                                    preferredProvider="tradingview"
+                                    allowFallback={true}
+                                    className="rounded-lg overflow-hidden"
+                                    onProviderChange={(provider) => {
+                                      console.log(`Chart switched to provider: ${provider}`)
+                                    }}
+                                  />
+                                </div>
+                              )
+                            })()}
+                          </div>
+
+                          {/* Chart Analysis */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+                              <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Entry Analysis</h3>
+                              <div className="space-y-3">
+                                <div className="flex justify-between">
+                                  <span className={themeClasses.textSecondary}>Entry Date:</span>
+                                  <span className={themeClasses.text}>{formatDate(trade.entryDate)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className={themeClasses.textSecondary}>Entry Price:</span>
+                                  <span className={themeClasses.text}>{formatCurrency(trade.entryPrice)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className={themeClasses.textSecondary}>Side:</span>
+                                  <span className={trade.side === 'LONG' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                    {trade.side}
+                                  </span>
+                                </div>
+                                {trade.strategy && (
+                                  <div className="flex justify-between">
+                                    <span className={themeClasses.textSecondary}>Strategy:</span>
+                                    <span className={themeClasses.text}>{trade.strategy}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {trade.exitDate && (
+                              <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+                                <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Exit Analysis</h3>
+                                <div className="space-y-3">
+                                  <div className="flex justify-between">
+                                    <span className={themeClasses.textSecondary}>Exit Date:</span>
+                                    <span className={themeClasses.text}>{formatDate(trade.exitDate)}</span>
+                                  </div>
+                                  {trade.exitPrice && (
+                                    <div className="flex justify-between">
+                                      <span className={themeClasses.textSecondary}>Exit Price:</span>
+                                      <span className={themeClasses.text}>{formatCurrency(trade.exitPrice)}</span>
+                                    </div>
+                                  )}
+                                  {trade.netPnL !== undefined && (
+                                    <div className="flex justify-between">
+                                      <span className={themeClasses.textSecondary}>P&L:</span>
+                                      <span className={getPnLColor(trade.netPnL)}>{formatCurrency(trade.netPnL)}</span>
+                                    </div>
+                                  )}
+                                  {trade.returnPercent !== undefined && (
+                                    <div className="flex justify-between">
+                                      <span className={themeClasses.textSecondary}>Return:</span>
+                                      <span className={getPnLColor(trade.returnPercent ?? 0)}>{(trade.returnPercent ?? 0).toFixed(2)}%</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {activeTab === 'performance' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Contract Details */}

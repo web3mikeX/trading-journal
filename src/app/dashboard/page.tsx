@@ -22,6 +22,7 @@ import TradeDetailModal from "@/components/TradeDetailModal"
 import Header from "@/components/Header"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import AIChat from "@/components/AIChat"
+import EconomicCalendar from "@/components/EconomicCalendar"
 import { formatCurrency } from "@/lib/utils"
 import { useStats } from "@/hooks/useStats"
 import { useTheme } from "@/components/ThemeProvider"
@@ -236,6 +237,7 @@ function DashboardContent() {
           </div>
         </div>
 
+
         {/* Trading Calendar */}
         <div className="px-6 mb-8">
           <div className="max-w-7xl mx-auto">
@@ -271,6 +273,28 @@ function DashboardContent() {
                   />
                 </ErrorBoundary>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Economic Calendar */}
+        <div className="px-6 mb-8">
+          <div className="max-w-7xl mx-auto">
+            <h2 className={`text-2xl font-bold ${themeClasses.text} mb-4`}>Economic Calendar</h2>
+            <div className={`p-6 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+              <div className="flex flex-wrap gap-4 mb-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Track key economic events and announcements that may impact your trading
+                </div>
+              </div>
+              <EconomicCalendar
+                width="100%"
+                height={600}
+                importanceFilter="-1,0,1"
+                countryFilter="us,eu,gb,jp,ca,au,nz,ch"
+                className="rounded-lg overflow-hidden"
+                isTransparent={false}
+              />
             </div>
           </div>
         </div>
