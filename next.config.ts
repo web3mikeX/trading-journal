@@ -21,6 +21,23 @@ const nextConfig: NextConfig = {
       ignored: ['**/node_modules', '**/.git', '**/.next'],
     };
     
+    // Optimize chunk splitting for lightweight-charts
+    config.optimization = {
+      ...config.optimization,
+      splitChunks: {
+        ...config.optimization.splitChunks,
+        cacheGroups: {
+          ...config.optimization.splitChunks?.cacheGroups,
+          lightweightCharts: {
+            test: /[\\/]node_modules[\\/]lightweight-charts[\\/]/,
+            name: 'lightweight-charts',
+            chunks: 'all',
+            priority: 10,
+          },
+        },
+      },
+    };
+    
     return config;
   },
   

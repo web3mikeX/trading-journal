@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, memo } from "react"
-import TradingViewChart from "@/components/TradingViewChart"
-import InvestingChart from "@/components/InvestingChart"
+import ApexFinancialChart from "@/components/ApexFinancialChart"
 import LightweightChart from "@/components/LightweightChart"
+import LightweightChartReal from "@/components/LightweightChartReal"
 
-type ChartProvider = 'tradingview' | 'yahoo' | 'lightweight'
+type ChartProvider = 'apexcharts' | 'lightweight_real' | 'lightweight' | 'placeholder'
 
 interface UnifiedChartProps {
   symbol: string
@@ -20,30 +20,25 @@ interface UnifiedChartProps {
 
 // Symbol mapping for different providers
 const symbolMappings = {
-  tradingview: (symbol: string) => {
-    // Convert from trading journal symbols to TradingView format
-    if (symbol.includes('NQ')) return 'CME_MINI:NQ1!'
-    if (symbol.includes('MNQ')) return 'CME_MINI:MNQ1!'
-    if (symbol.includes('ES')) return 'CME_MINI:ES1!'
-    if (symbol === 'QQQ') return 'NASDAQ:QQQ'
-    if (symbol.includes('EUR')) return 'FX:EURUSD'
-    if (symbol.includes('BTC')) return 'COINBASE:BTCUSD'
+  apexcharts: (symbol: string) => {
+    // ApexCharts will use the symbol as-is since we're generating sample data
     return symbol
   },
-  yahoo: (symbol: string) => {
-    // Convert to Yahoo Finance format
+  lightweight_real: (symbol: string) => {
+    // Real lightweight charts use symbol as-is, market data service handles mapping
+    return symbol
+  },
+  lightweight: (symbol: string) => {
+    // Lightweight charts symbol format (placeholder version)
     if (symbol.includes('NQ')) return 'NQ=F'
-    if (symbol.includes('MNQ')) return 'NQ=F' // MNQ also uses NQ futures
+    if (symbol.includes('MNQ')) return 'MNQ=F'
     if (symbol.includes('ES')) return 'ES=F'
     if (symbol === 'QQQ') return 'QQQ'
     if (symbol.includes('EUR')) return 'EURUSD=X'
     if (symbol.includes('BTC')) return 'BTC-USD'
     return symbol
   },
-  lightweight: (symbol: string) => {
-    // Same as Yahoo Finance for now (since we're using sample data)
-    return symbolMappings.yahoo(symbol)
-  }
+  placeholder: (symbol: string) => symbol
 }
 
 function UnifiedChart({
@@ -52,7 +47,7 @@ function UnifiedChart({
   height = 300,
   interval = "D",
   className = "",
-  preferredProvider = 'tradingview',
+  preferredProvider = 'lightweight_real',
   allowFallback = true,
   onProviderChange
 }: UnifiedChartProps) {
@@ -61,7 +56,7 @@ function UnifiedChart({
   const [isLoading, setIsLoading] = useState(true)
 
   // Provider priority order for fallbacks
-  const providerOrder: ChartProvider[] = ['tradingview', 'yahoo', 'lightweight']
+  const providerOrder: ChartProvider[] = ['lightweight_real', 'apexcharts', 'lightweight', 'placeholder']
 
   const handleProviderError = (provider: ChartProvider) => {
     console.warn(`Chart provider ${provider} failed for symbol ${symbol}`)
@@ -103,30 +98,39 @@ function UnifiedChart({
     const mappedSymbol = getMappedSymbol(currentProvider)
     
     switch (currentProvider) {
-      case 'tradingview':
+      case 'apexcharts':
+        // Create a mock trade object for ApexFinancialChart
+        const mockTrade = {
+          id: `mock-${symbol}-${Date.now()}`,
+          symbol: mappedSymbol,
+          side: 'LONG' as const,
+          entryDate: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
+          exitDate: new Date(),
+          entryPrice: 20000 + Math.random() * 1000,
+          exitPrice: 20000 + Math.random() * 1000,
+          quantity: 1,
+          market: 'FUTURES'
+        }
+        
         return (
-          <TradingViewChart
-            symbol={mappedSymbol}
-            interval={interval}
+          <ApexFinancialChart
+            trade={mockTrade}
             width={width}
             height={height}
-            allowSymbolChange={false}
-            hideTopToolbar={true}
-            hideSideToolbar={true}
             className="rounded overflow-hidden"
-            onLoad={handleProviderLoad}
           />
         )
       
-      case 'yahoo':
+      case 'lightweight_real':
         return (
-          <InvestingChart
+          <LightweightChartReal
             symbol={mappedSymbol}
             width={width}
             height={height}
             interval={interval}
             className="rounded overflow-hidden"
             onLoad={handleProviderLoad}
+            showTradeMarkers={false} // No trade markers in unified chart mode
           />
         )
       
@@ -140,6 +144,24 @@ function UnifiedChart({
             className="rounded overflow-hidden"
             onLoad={handleProviderLoad}
           />
+        )
+      
+      case 'placeholder':
+        return (
+          <div 
+            className="flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600"
+            style={{ width: `${width}px`, height: `${height}px` }}
+          >
+            <div className="text-center p-4">
+              <div className="text-gray-400 dark:text-gray-500 mb-2">📊</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Chart for {symbol}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-500">
+                No providers available
+              </div>
+            </div>
+          </div>
         )
       
       default:

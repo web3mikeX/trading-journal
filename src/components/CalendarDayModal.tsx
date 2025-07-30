@@ -24,6 +24,7 @@ import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useApiThrottle } from "@/hooks/useApiThrottle"
+import ChartWrapper from "@/components/ChartWrapper"
 
 interface Trade {
   id: string
@@ -78,6 +79,8 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   const [generatingAISummary, setGeneratingAISummary] = useState(false)
   const [aiSummary, setAISummary] = useState<string | null>(null)
+  const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
+  const [chartTimeframe, setChartTimeframe] = useState<string>('1h')
   
   const { shouldThrottle, trackApiCall } = useApiThrottle()
   
@@ -164,11 +167,21 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
   // loadDayData function moved above and memoized with useCallback
   
   const saveDayData = async () => {
+    console.log('📝 Starting save operation...')
     setSaving(true)
     setSaveMessage(null)
     setSaveError(null)
     
     try {
+      // Validate required data
+      if (!userId) {
+        throw new Error('User ID is required')
+      }
+      
+      if (!date) {
+        throw new Error('Date is required')
+      }
+      
       const requestData = {
         userId,
         notes: notes.trim() || undefined,
@@ -176,11 +189,14 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
         images: images.length > 0 ? images : undefined
       }
       
-      console.log('Sending calendar data:', requestData)
+      console.log('📝 Request data:', requestData)
+      console.log('📝 Notes length:', notes.length)
+      console.log('📝 Notes content:', notes)
       
       // Ensure we have a clean date format (YYYY-MM-DD)
       const cleanDate = new Date(date).toISOString().split('T')[0]
-      console.log('Using date:', cleanDate)
+      console.log('📝 Using date:', cleanDate)
+      console.log('📝 API endpoint:', `/api/calendar/${cleanDate}`)
       
       const response = await fetch(`/api/calendar/${cleanDate}`, {
         method: 'POST',
@@ -188,18 +204,24 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
         body: JSON.stringify(requestData)
       })
       
+      console.log('📝 Response status:', response.status)
+      console.log('📝 Response ok:', response.ok)
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('API Error Response:', errorData)
+        console.error('❌ API Error Response:', errorData)
         throw new Error(`Save failed: ${response.status} ${response.statusText}${errorData ? ` - ${JSON.stringify(errorData)}` : ''}`)
       }
       
       const updatedData = await response.json()
+      console.log('✅ Save successful! Updated data:', updatedData)
+      
       setDayData(updatedData)
       setSaveMessage('Saved successfully!')
       
       // Call the parent callback to refresh calendar data
       if (onSaveSuccess) {
+        console.log('📝 Calling onSaveSuccess callback')
         onSaveSuccess()
       }
       
@@ -207,12 +229,16 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
       setTimeout(() => setSaveMessage(null), 3000)
       
     } catch (error) {
-      console.error('Failed to save day data:', error)
+      console.error('❌ Failed to save day data:', error)
+      console.error('❌ Error type:', typeof error)
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      
       setSaveError(error instanceof Error ? error.message : 'Failed to save day data')
       
       // Clear error message after 5 seconds
       setTimeout(() => setSaveError(null), 5000)
     } finally {
+      console.log('📝 Save operation finished, setting saving to false')
       setSaving(false)
     }
   }
@@ -555,49 +581,85 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                   
                   {/* Trades Tab */}
                   {activeTab === 'trades' && (
-                    <div key="trades-tab" className="space-y-4">
+                    <div key="trades-tab" className="space-y-8">
                       {dayData?.trades && dayData.trades.length > 0 ? (
-                        <div className="overflow-x-auto">
-                          <table className="w-full">
-                            <thead>
-                              <tr className={`border-b ${themeClasses.border}`}>
-                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Symbol</th>
-                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Side</th>
-                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Entry</th>
-                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Exit</th>
-                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>P&L</th>
-                                <th className={`text-left py-2 ${themeClasses.textSecondary}`}>Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {dayData.trades.map((trade) => (
-                                <tr key={trade.id} className={`border-b ${themeClasses.border}`}>
-                                  <td className={`py-2 font-medium ${themeClasses.text}`}>{trade.symbol}</td>
-                                  <td className="py-2">
-                                    <span className={`px-2 py-1 rounded text-xs ${
-                                      trade.side === 'LONG' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`}>
-                                      {trade.side}
-                                    </span>
-                                  </td>
-                                  <td className={`py-2 ${themeClasses.text}`}>${trade.entryPrice}</td>
-                                  <td className={`py-2 ${themeClasses.text}`}>
-                                    {trade.exitPrice ? `$${trade.exitPrice}` : '-'}
-                                  </td>
-                                  <td className={`py-2 ${trade.netPnL && trade.netPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {trade.netPnL ? formatCurrency(trade.netPnL) : '-'}
-                                  </td>
-                                  <td className="py-2">
-                                    <span className={`px-2 py-1 rounded text-xs ${
-                                      trade.status === 'CLOSED' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-                                    }`}>
-                                      {trade.status}
-                                    </span>
-                                  </td>
-                                </tr>
+                        <div className="space-y-8">
+                          {/* Chart Section - Full width, centered */}
+                          <div className="space-y-4">
+                            {selectedTrade ? (
+                              <>
+                                <h3 className={`text-lg font-semibold ${themeClasses.text} mb-3 text-center`}>
+                                  Chart: {selectedTrade.symbol} {selectedTrade.side}
+                                </h3>
+                                <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
+                                  <ChartWrapper
+                                    symbol={selectedTrade.symbol}
+                                    width="100%"
+                                    height={500}
+                                    trade={selectedTrade}
+                                    showTradeMarkers={true}
+                                    theme={theme}
+                                    timeframe={chartTimeframe}
+                                    onTimeframeChange={setChartTimeframe}
+                                  />
+                                </div>
+                              </>
+                            ) : (
+                              <div className={`p-6 rounded-lg ${themeClasses.surface} border ${themeClasses.border} text-center`}>
+                                <p className={themeClasses.textSecondary}>Select a trade to view its chart</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Trade List - Underneath chart, horizontal layout */}
+                          <div className="space-y-4">
+                            <h3 className={`text-base font-semibold ${themeClasses.text} mb-3 text-center`}>
+                              Trades ({dayData.trades.length})
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {dayData.trades.map((trade, index) => (
+                                <div
+                                  key={trade.id}
+                                  onClick={() => setSelectedTrade(trade)}
+                                  className={`p-4 rounded-lg cursor-pointer transition-all ${
+                                    selectedTrade?.id === trade.id
+                                      ? 'bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-700 shadow-md'
+                                      : `${themeClasses.surface} border ${themeClasses.border} hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:shadow-sm`
+                                  }`}
+                                >
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center space-x-2">
+                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                                          trade.side === 'LONG' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                                        }`}>
+                                          {index + 1}
+                                        </div>
+                                        <div className={`font-medium ${themeClasses.text}`}>
+                                          {trade.symbol} {trade.side}
+                                        </div>
+                                      </div>
+                                      <div className={`text-sm font-medium ${trade.netPnL && trade.netPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                        {trade.netPnL ? formatCurrency(trade.netPnL) : '-'}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between text-xs">
+                                      <div className={themeClasses.textSecondary}>
+                                        ${trade.entryPrice} → {trade.exitPrice ? `$${trade.exitPrice}` : 'Open'}
+                                      </div>
+                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                        trade.status === 'CLOSED' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' : 
+                                        trade.status === 'OPEN' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' : 
+                                        'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                                      }`}>
+                                        {trade.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
                               ))}
-                            </tbody>
-                          </table>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-8">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { 
   X, 
@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
-import TradeChart from "@/components/TradeChart"
+import ChartWrapper from "@/components/ChartWrapper"
 
 interface Trade {
   id: string
@@ -97,24 +97,24 @@ export default function TradeDetailModal({
     }
   }, [isOpen, tradeId])
 
-  const fetchTradeDetails = async () => {
+  const fetchTradeDetails = useCallback(async () => {
     if (!tradeId) return
     
     setLoading(true)
     setError(null)
     
     try {
-      console.log('Fetching trade details for ID:', tradeId)
-      const response = await fetch(`/api/trades/${tradeId}`)
+      const response = await fetch(`/api/trades/${tradeId}`, {
+        headers: {
+          'Cache-Control': 'max-age=300' // 5 minute cache
+        }
+      })
       
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('API Error:', response.status, errorText)
         throw new Error(`Failed to fetch trade details: ${response.status}`)
       }
       
       const tradeData = await response.json()
-      console.log('Received trade data:', tradeData)
       
       // Validate that we have essential data
       if (!tradeData.id || !tradeData.symbol) {
@@ -130,53 +130,58 @@ export default function TradeDetailModal({
       
       // Validate dates
       if (isNaN(processedTrade.entryDate.getTime())) {
-        console.warn('Invalid entryDate, using current date')
         processedTrade.entryDate = new Date()
       }
       
       if (processedTrade.exitDate && isNaN(processedTrade.exitDate.getTime())) {
-        console.warn('Invalid exitDate, setting to undefined')
         processedTrade.exitDate = undefined
       }
       
       setTrade(processedTrade)
     } catch (err) {
-      console.error('Error fetching trade details:', err)
       setError(err instanceof Error ? err.message : 'Failed to load trade details')
     } finally {
       setLoading(false)
     }
-  }
+  }, [tradeId])
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     if (trade && onEdit) {
       onEdit(trade.id)
     }
-  }
+  }, [trade, onEdit])
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     if (trade && onDelete) {
       onDelete(trade.id)
     }
-  }
+  }, [trade, onDelete])
 
-  const formatCurrency = (amount: number) => {
+  const currencyFormatter = useMemo(() => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 2
-    }).format(amount)
-  }
+    })
+  }, [])
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
+  const dateFormatter = useMemo(() => {
+    return new Intl.DateTimeFormat('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     })
-  }
+  }, [])
+
+  const formatCurrency = useCallback((amount: number) => {
+    return currencyFormatter.format(amount)
+  }, [currencyFormatter])
+
+  const formatDate = useCallback((date: Date) => {
+    return dateFormatter.format(date)
+  }, [dateFormatter])
 
   const getPnLColor = (pnl: number) => {
     if (pnl > 0) return 'text-green-600 dark:text-green-400'
@@ -303,7 +308,7 @@ export default function TradeDetailModal({
                         return (
                           <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => setActiveTab(tab.id as 'overview' | 'performance' | 'risk' | 'execution' | 'contract' | 'journal' | 'chart')}
                             className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
                               activeTab === tab.id
                                 ? `${themeClasses.button} text-white`
@@ -391,99 +396,6 @@ export default function TradeDetailModal({
                         </div>
                       )}
 
-                      {false && (
-                        <div className="space-y-6">
-                          {/* Chart Section */}
-                          <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
-                            <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Price Chart</h3>
-                            {(() => {
-                              // Use trade symbol directly for better futures support
-                              const chartSymbol = trade.symbol
-                              
-                              return (
-                                <div className="w-full">
-                                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                    <p className="text-sm text-blue-700 dark:text-blue-300">
-                                      <strong>Chart Info:</strong> Showing {chartSymbol} with automatic provider fallbacks (TradingView → Lightweight Charts → Yahoo Finance)
-                                    </p>
-                                  </div>
-                                  <UnifiedChart
-                                    symbol={chartSymbol}
-                                    width={700}
-                                    height={500}
-                                    interval="D"
-                                    preferredProvider="tradingview"
-                                    allowFallback={true}
-                                    className="rounded-lg overflow-hidden"
-                                    onProviderChange={(provider) => {
-                                      console.log(`Chart switched to provider: ${provider}`)
-                                    }}
-                                  />
-                                </div>
-                              )
-                            })()}
-                          </div>
-
-                          {/* Chart Analysis */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
-                              <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Entry Analysis</h3>
-                              <div className="space-y-3">
-                                <div className="flex justify-between">
-                                  <span className={themeClasses.textSecondary}>Entry Date:</span>
-                                  <span className={themeClasses.text}>{formatDate(trade.entryDate)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className={themeClasses.textSecondary}>Entry Price:</span>
-                                  <span className={themeClasses.text}>{formatCurrency(trade.entryPrice)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className={themeClasses.textSecondary}>Side:</span>
-                                  <span className={trade.side === 'LONG' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                                    {trade.side}
-                                  </span>
-                                </div>
-                                {trade.strategy && (
-                                  <div className="flex justify-between">
-                                    <span className={themeClasses.textSecondary}>Strategy:</span>
-                                    <span className={themeClasses.text}>{trade.strategy}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {trade.exitDate && (
-                              <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
-                                <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Exit Analysis</h3>
-                                <div className="space-y-3">
-                                  <div className="flex justify-between">
-                                    <span className={themeClasses.textSecondary}>Exit Date:</span>
-                                    <span className={themeClasses.text}>{formatDate(trade.exitDate)}</span>
-                                  </div>
-                                  {trade.exitPrice && (
-                                    <div className="flex justify-between">
-                                      <span className={themeClasses.textSecondary}>Exit Price:</span>
-                                      <span className={themeClasses.text}>{formatCurrency(trade.exitPrice)}</span>
-                                    </div>
-                                  )}
-                                  {trade.netPnL !== undefined && (
-                                    <div className="flex justify-between">
-                                      <span className={themeClasses.textSecondary}>P&L:</span>
-                                      <span className={getPnLColor(trade.netPnL)}>{formatCurrency(trade.netPnL)}</span>
-                                    </div>
-                                  )}
-                                  {trade.returnPercent !== undefined && (
-                                    <div className="flex justify-between">
-                                      <span className={themeClasses.textSecondary}>Return:</span>
-                                      <span className={getPnLColor(trade.returnPercent ?? 0)}>{(trade.returnPercent ?? 0).toFixed(2)}%</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
 
                       {activeTab === 'chart' && (
                         <div className="space-y-6">
@@ -492,13 +404,17 @@ export default function TradeDetailModal({
                             <h3 className={`text-lg font-semibold ${themeClasses.text} mb-4`}>Trade Chart Visualization</h3>
                             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                               <p className="text-sm text-blue-700 dark:text-blue-300">
-                                <strong>TradesViz Integration:</strong> Interactive chart showing price action with entry/exit markers
+                                <strong>Professional Chart Analysis:</strong> Interactive candlestick chart with precise entry/exit markers and price action visualization
                               </p>
                             </div>
-                            <TradeChart
-                              trade={trade}
+                            <ChartWrapper
+                              symbol={trade.symbol}
                               width="100%"
                               height="500px"
+                              trade={trade}
+                              showTradeMarkers={true}
+                              theme={theme}
+                              timeframe="1h"
                             />
                           </div>
                         </div>

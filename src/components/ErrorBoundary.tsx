@@ -50,10 +50,10 @@ class ErrorBoundary extends Component<Props, State> {
     // If more than 5 errors in rapid succession, likely infinite loop
     if (this.errorCount > 5) {
       console.error('Potential infinite loop detected - multiple errors in rapid succession')
-      // Force a page reload as last resort
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
+      // Temporarily disable auto-refresh to prevent refresh loops
+      // setTimeout(() => {
+      //   window.location.reload()
+      // }, 2000)
     }
     
     console.error('Error caught by boundary:', error, errorInfo)

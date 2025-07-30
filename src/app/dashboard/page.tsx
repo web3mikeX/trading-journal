@@ -46,7 +46,7 @@ function DashboardContent() {
   const [mounted, setMounted] = useState(false)
   
   // All hooks must be called consistently - moved to top level
-  const { stats, loading: statsLoading, error: statsError } = useStats(user?.id || '')
+  const { stats, loading: statsLoading, error: statsError, refetchStats } = useStats(user?.id || '')
   
   // Calendar modal state - always declared
   const [selectedDate, setSelectedDate] = useState<string>('')
@@ -90,13 +90,20 @@ function DashboardContent() {
   }, [])
 
   const onSaveSuccess = useCallback(() => {
-    // Close modal and refresh calendar data instead of full page reload
+    console.log('📅 Calendar save success - refreshing data without page reload')
+    // Close modal
     setIsCalendarModalOpen(false)
     setSelectedDate('')
     setSelectedDayData(undefined)
-    // Force a re-render of the TradingCalendar component
-    window.location.reload()
-  }, [])
+    
+    // Refresh calendar data without page reload
+    if (window.refreshTradingCalendar) {
+      window.refreshTradingCalendar()
+    }
+    
+    // Refresh stats to reflect any changes
+    refetchStats()
+  }, [refetchStats])
 
   // Always call useMemo hooks
   const memoizedSelectedDayData = useMemo(() => selectedDayData, [selectedDayData])
@@ -249,6 +256,7 @@ function DashboardContent() {
               <TradingCalendar 
                 onDayClick={handleDayClick}
                 userId={user?.id || ''}
+                onRefreshNeeded={() => {}} // Enable refresh capability
               />
             </ErrorBoundary>
           </div>
@@ -347,8 +355,14 @@ function DashboardContent() {
           router.push(`/trades?edit=${tradeId}`)
         }}
         onDelete={() => {
+          console.log('🗑️ Trade deleted - refreshing data without page reload')
           closeTradeDetailModal()
-          window.location.reload()
+          // Refresh calendar data to reflect the deleted trade
+          if (window.refreshTradingCalendar) {
+            window.refreshTradingCalendar()
+          }
+          // Refresh stats to reflect the deleted trade
+          refetchStats()
         }}
       />
 

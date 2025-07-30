@@ -6,13 +6,19 @@ export function useAuth() {
   useEffect(() => {
     const initDemo = async () => {
       try {
-        await fetch('/api/init-demo', { method: 'POST' })
+        const response = await fetch('/api/init-demo', { method: 'POST' })
+        if (!response.ok) {
+          console.warn('Demo user initialization returned non-OK status:', response.status)
+        }
       } catch (error) {
-        console.error('Failed to initialize demo user:', error)
+        // Silently fail since this is non-blocking demo initialization
+        // Error likely occurs during initial server startup
       }
     }
     
-    initDemo()
+    // Add small delay to allow server to fully initialize
+    const timer = setTimeout(initDemo, 1000)
+    return () => clearTimeout(timer)
   }, [])
   
   // Always return demo user immediately

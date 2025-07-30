@@ -33,6 +33,7 @@ interface CalendarData {
 interface TradingCalendarProps {
   onDayClick: (date: string, dayData?: CalendarDayData) => void
   userId: string
+  onRefreshNeeded?: () => void // Callback to trigger refresh from parent
 }
 
 const MONTHS = [
@@ -42,7 +43,7 @@ const MONTHS = [
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-export default function TradingCalendar({ onDayClick, userId }: TradingCalendarProps) {
+export default function TradingCalendar({ onDayClick, userId, onRefreshNeeded }: TradingCalendarProps) {
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   
@@ -68,13 +69,13 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
   const abortControllerRef = useRef<AbortController | null>(null)
   
   // Memoize the loadCalendarData function
-  const loadCalendarData = useCallback(async () => {
+  const loadCalendarData = useCallback(async (forceRefresh = false) => {
     if (!userId) return
     
     const yearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`
     
-    // Don't reload if we already have this month's data
-    if (loadedMonthRef.current === yearMonth) {
+    // Don't reload if we already have this month's data, unless forcing refresh
+    if (!forceRefresh && loadedMonthRef.current === yearMonth) {
       return
     }
     
@@ -115,6 +116,26 @@ export default function TradingCalendar({ onDayClick, userId }: TradingCalendarP
       setLoading(false)
     }
   }, [userId, currentMonth, currentYear])
+  
+  // Expose refresh function to parent component
+  const refreshCalendarData = useCallback(() => {
+    console.log('📅 Refreshing calendar data...')
+    loadCalendarData(true) // Force refresh
+  }, [loadCalendarData])
+  
+  // Expose refresh function to parent via callback
+  useEffect(() => {
+    if (onRefreshNeeded) {
+      // Store the refresh function so parent can call it
+      window.refreshTradingCalendar = refreshCalendarData
+    }
+    
+    return () => {
+      if (window.refreshTradingCalendar) {
+        delete window.refreshTradingCalendar
+      }
+    }
+  }, [refreshCalendarData, onRefreshNeeded])
   
   // Load calendar data for the current month
   useEffect(() => {

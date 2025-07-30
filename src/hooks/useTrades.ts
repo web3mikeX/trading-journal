@@ -72,6 +72,16 @@ export function useTrades(userId: string) {
     try {
       setError(null)
       
+      // Optimistic update - add trade to UI immediately with temporary ID
+      const tempId = `temp-${Date.now()}`
+      const optimisticTrade = {
+        ...tradeData,
+        id: tempId
+      }
+      
+      setTrades(prev => [optimisticTrade, ...prev])
+      console.log('⚡ Optimistic add applied for trade:', tempId)
+      
       const response = await fetch('/api/trades', {
         method: 'POST',
         headers: {
@@ -86,20 +96,27 @@ export function useTrades(userId: string) {
       })
       
       if (!response.ok) {
+        // Rollback optimistic update on error
+        console.log('❌ Rolling back optimistic add for trade:', tempId)
+        setTrades(prev => prev.filter(trade => trade.id !== tempId))
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to add trade')
       }
 
       const newTrade = await response.json()
       
-      // Convert dates and add to state
+      // Convert dates and replace optimistic trade with real trade
       const tradeWithDates = {
         ...newTrade,
         entryDate: new Date(newTrade.entryDate),
         exitDate: newTrade.exitDate ? new Date(newTrade.exitDate) : undefined
       }
       
-      setTrades(prev => [tradeWithDates, ...prev])
+      setTrades(prev => prev.map(trade => 
+        trade.id === tempId ? tradeWithDates : trade
+      ))
+      
+      console.log('✅ Server add confirmed for trade:', newTrade.id)
       return tradeWithDates
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -110,6 +127,25 @@ export function useTrades(userId: string) {
   const updateTrade = async (tradeId: string, updates: Partial<Omit<Trade, 'id'>>) => {
     try {
       setError(null)
+      
+      // Optimistic update - update UI immediately
+      const optimisticTrade = {
+        ...updates,
+        id: tradeId,
+        entryDate: updates.entryDate || new Date(),
+        exitDate: updates.exitDate || undefined
+      }
+      
+      // Store original trade for rollback
+      let originalTrade: Trade | undefined
+      setTrades(prev => {
+        originalTrade = prev.find(trade => trade.id === tradeId)
+        return prev.map(trade => 
+          trade.id === tradeId ? { ...trade, ...optimisticTrade } : trade
+        )
+      })
+      
+      console.log('⚡ Optimistic update applied for trade:', tradeId)
       
       const response = await fetch(`/api/trades/${tradeId}`, {
         method: 'PUT',
@@ -124,13 +160,20 @@ export function useTrades(userId: string) {
       })
       
       if (!response.ok) {
+        // Rollback optimistic update on error
+        if (originalTrade) {
+          console.log('❌ Rolling back optimistic update for trade:', tradeId)
+          setTrades(prev => prev.map(trade => 
+            trade.id === tradeId ? originalTrade! : trade
+          ))
+        }
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to update trade')
       }
 
       const updatedTrade = await response.json()
       
-      // Convert dates and update state
+      // Convert dates and update state with server response
       const tradeWithDates = {
         ...updatedTrade,
         entryDate: new Date(updatedTrade.entryDate),
@@ -141,6 +184,7 @@ export function useTrades(userId: string) {
         trade.id === tradeId ? tradeWithDates : trade
       ))
       
+      console.log('✅ Server update confirmed for trade:', tradeId)
       return tradeWithDates
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
@@ -152,16 +196,32 @@ export function useTrades(userId: string) {
     try {
       setError(null)
       
+      // Optimistic update - remove trade from UI immediately
+      let deletedTrade: Trade | undefined
+      setTrades(prev => {
+        deletedTrade = prev.find(trade => trade.id === tradeId)
+        return prev.filter(trade => trade.id !== tradeId)
+      })
+      
+      console.log('⚡ Optimistic delete applied for trade:', tradeId)
+      
       const response = await fetch(`/api/trades/${tradeId}`, {
         method: 'DELETE',
       })
       
       if (!response.ok) {
+        // Rollback optimistic update on error
+        if (deletedTrade) {
+          console.log('❌ Rolling back optimistic delete for trade:', tradeId)
+          setTrades(prev => [...prev, deletedTrade!].sort((a, b) => 
+            b.entryDate.getTime() - a.entryDate.getTime()
+          ))
+        }
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to delete trade')
       }
 
-      setTrades(prev => prev.filter(trade => trade.id !== tradeId))
+      console.log('✅ Server delete confirmed for trade:', tradeId)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
       throw err

@@ -63,7 +63,7 @@ function TradesContent() {
   const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null)
   const [importSummary, setImportSummary] = useState({ count: 0, summary: '' })
   const { trades, loading, error, addTrade, updateTrade, deleteTrade, fetchTrades } = useTrades(user?.id || '')
-  const { stats } = useStats(user?.id || '')
+  const { stats, refetchStats } = useStats(user?.id || '')
 
   // All useMemo and useCallback hooks must be at the top before any conditional logic
   const filteredTrades = useMemo(() => {
@@ -135,6 +135,8 @@ function TradesContent() {
   const handleAddTrade = async (tradeData: any) => {
     try {
       await addTrade(tradeData)
+      // Refresh stats to reflect the new trade
+      refetchStats()
     } catch (error) {
       console.error('Failed to add trade:', error)
       throw error
@@ -146,6 +148,8 @@ function TradesContent() {
       await updateTrade(tradeId, updates)
       setIsEditModalOpen(false)
       setSelectedTrade(null)
+      // Refresh stats to reflect the updated trade
+      refetchStats()
     } catch (error) {
       console.error('Failed to update trade:', error)
       throw error
@@ -156,6 +160,8 @@ function TradesContent() {
     if (window.confirm('Are you sure you want to delete this trade? This action cannot be undone.')) {
       try {
         await deleteTrade(tradeId)
+        // Refresh stats to reflect the deleted trade
+        refetchStats()
       } catch (error) {
         console.error('Failed to delete trade:', error)
         alert('Failed to delete trade. Please try again.')
@@ -449,7 +455,7 @@ function TradesContent() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportComplete={(importedCount?: number, summary?: string) => {
-          console.log('Import completed, showing journal modal...', { importedCount, summary })
+          console.log('Import completed, updating state immediately...', { importedCount, summary })
           
           // Store import summary for journal modal
           setImportSummary({ 
@@ -457,20 +463,18 @@ function TradesContent() {
             summary: summary || `Successfully imported ${importedCount || 0} trades` 
           })
           
-          // Close import modal first
+          // Close import modal and refresh trades immediately
           setIsImportModalOpen(false)
+          fetchTrades().catch(console.error) // Immediate refresh without delay
+          
+          // Refresh stats to reflect the imported trades
+          refetchStats()
           
           // Show journal modal immediately
           setTimeout(() => {
             console.log('Setting journal modal to open...')
             setIsPostImportJournalOpen(true)
           }, 100)
-          
-          // Refresh trades data after a delay to avoid interfering with modal
-          setTimeout(() => {
-            console.log('Refreshing trades...')
-            fetchTrades().catch(console.error)
-          }, 1500)
         }}
       />
 
@@ -493,6 +497,7 @@ function TradesContent() {
           await handleDeleteTrade(tradeId)
           setIsDetailModalOpen(false)
           setSelectedTradeId(null)
+          // Stats already refreshed in handleDeleteTrade
         }}
       />
 
@@ -500,8 +505,7 @@ function TradesContent() {
         isOpen={isPostImportJournalOpen}
         onClose={() => {
           setIsPostImportJournalOpen(false)
-          // Ensure trades are refreshed when journal modal closes
-          fetchTrades().catch(console.error)
+          // No need to refresh trades again - already done after import
         }}
         importCount={importSummary.count}
         importSummary={importSummary.summary}

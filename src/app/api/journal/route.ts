@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const createJournalEntrySchema = z.object({
-  title: z.string().max(200, 'Title must be less than 200 characters').optional(),
+  title: z.string().max(200, 'Title must be less than 200 characters').default('Untitled Entry'),
   content: z.string().min(1, 'Content is required').max(5000, 'Content must be less than 5000 characters'),
   entryType: z.enum(['PRE_TRADE', 'DURING_TRADE', 'POST_TRADE', 'GENERAL', 'LESSON']).default('GENERAL'),
   type: z.enum(['post_import']).optional(), // For special entry types
@@ -95,10 +95,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    console.log('📝 Journal API received request body:', body)
     
     // Set demo user ID if not provided
     if (!body.userId) {
       body.userId = "cmcwu8b5m0001m17ilm0triy8" // Demo user ID
+      console.log('📝 Set default demo user ID')
     }
     
     // Generate title for post-import entries
@@ -108,10 +110,13 @@ export async function POST(request: NextRequest) {
       body.entryType = 'POST_TRADE'
     }
     
+    console.log('📝 Validating data with schema...')
     const validatedData = createJournalEntrySchema.parse(body)
+    console.log('📝 Validation successful:', validatedData)
 
     // Verify trade exists if tradeId is provided
     if (validatedData.tradeId) {
+      console.log('📝 Verifying trade exists:', validatedData.tradeId)
       const trade = await prisma.trade.findFirst({
         where: {
           id: validatedData.tradeId,
@@ -124,11 +129,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Prepare data for database - convert metadata to JSON string if it exists
+    // Prepare data for database - exclude metadata as it doesn't exist in schema
     const dataToCreate: any = {
-      ...validatedData,
-      metadata: validatedData.metadata ? JSON.stringify(validatedData.metadata) : null
+      ...validatedData
     }
+    
+    // Remove metadata field as it's not in the database schema
+    delete dataToCreate.metadata
+    delete dataToCreate.type // Also remove type field as it's only used for processing
+    
+    console.log('📝 Creating journal entry with data:', dataToCreate)
 
     const journalEntry = await prisma.journalEntry.create({
       data: dataToCreate,
@@ -146,9 +156,16 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log('✅ Journal entry created successfully:', journalEntry.id)
     return NextResponse.json(journalEntry, { status: 201 })
   } catch (error) {
+    console.error('❌ Journal API error:', error)
+    console.error('❌ Error type:', error instanceof Error ? error.constructor.name : typeof error)
+    console.error('❌ Error message:', error instanceof Error ? error.message : error)
+    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+    
     if (error instanceof z.ZodError) {
+      console.error('❌ Zod validation errors:', error.errors)
       return NextResponse.json({ error: error.errors }, { status: 400 })
     }
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
