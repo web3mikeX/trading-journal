@@ -2,7 +2,7 @@
 
 import { memo } from "react"
 import ApexFinancialChart from "./ApexFinancialChart"
-import LightweightChartReal from "./LightweightChartReal"
+import FastLightweightChart from "./FastLightweightChart"
 
 interface Trade {
   id: string
@@ -33,7 +33,7 @@ function TradeChart({
   height = "65vh",
   className = "",
   lazy = true,
-  useRealData = false
+  useRealData = true
 }: TradeChartProps) {
   
   // Convert width/height to numbers for LightweightChartReal
@@ -42,18 +42,27 @@ function TradeChart({
   const numericHeight = typeof height === 'string' ? 
     (height.includes('vh') ? 400 : parseInt(height)) : height
 
+  // Always try real data first, fallback to synthetic if needed
   if (useRealData) {
-    // Use real market data with TradingView Lightweight Charts
-    return (
-      <LightweightChartReal
-        symbol={trade.symbol}
-        trade={trade}
-        width={numericWidth}
-        height={numericHeight}
-        className={className}
-        showTradeMarkers={true}
-      />
-    )
+    try {
+      // Use optimized FastLightweightChart with real market data
+      return (
+        <FastLightweightChart
+          symbol={trade.symbol}
+          width={numericWidth}
+          height={numericHeight}
+          className={className}
+          preferReal={true}
+          showTradeMarkers={true}
+          trade={trade}
+          onLoad={() => {
+            console.log(`✅ Fast chart loaded for ${trade.symbol}`)
+          }}
+        />
+      )
+    } catch (error) {
+      console.warn(`Failed to load fast chart for ${trade.symbol}, falling back to synthetic:`, error)
+    }
   }
 
   // Fallback to ApexFinancialChart with synthetic data

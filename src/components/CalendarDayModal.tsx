@@ -24,7 +24,7 @@ import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { useApiThrottle } from "@/hooks/useApiThrottle"
-import ChartWrapper from "@/components/ChartWrapper"
+import FastLightweightChart from "@/components/FastLightweightChart"
 
 interface Trade {
   id: string
@@ -592,15 +592,14 @@ export default function CalendarDayModal({ isOpen, onClose, date, userId, initia
                                   Chart: {selectedTrade.symbol} {selectedTrade.side}
                                 </h3>
                                 <div className={`p-4 rounded-lg ${themeClasses.surface} border ${themeClasses.border}`}>
-                                  <ChartWrapper
+                                  <FastLightweightChart
                                     symbol={selectedTrade.symbol}
-                                    width="100%"
+                                    width={800}
                                     height={500}
                                     trade={selectedTrade}
                                     showTradeMarkers={true}
-                                    theme={theme}
-                                    timeframe={chartTimeframe}
-                                    onTimeframeChange={setChartTimeframe}
+                                    preferReal={true}
+                                    allowFallback={true}
                                   />
                                 </div>
                               </>

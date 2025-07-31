@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import UnifiedChart from "@/components/UnifiedChart"
+import FastLightweightChart from "@/components/FastLightweightChart"
 
 export default function TestUnifiedPage() {
   const [selectedSymbol, setSelectedSymbol] = useState("NQ")
@@ -55,16 +55,12 @@ export default function TestUnifiedPage() {
           </h2>
           
           <div className="flex justify-center">
-            <UnifiedChart
+            <FastLightweightChart
               symbol={selectedSymbol}
               width={800}
               height={400}
-              interval="D"
-              preferredProvider="tradingview"
-              allowFallback={true}
-              onProviderChange={(provider) => {
-                console.log(`Switched to provider: ${provider}`)
-              }}
+              preferReal={true}
+              showTradeMarkers={false}
             />
           </div>
         </div>
@@ -78,14 +74,14 @@ export default function TestUnifiedPage() {
             <div>
               <strong className="text-gray-900 dark:text-white">Automatic Fallbacks:</strong> 
               <span className="ml-2">
-                Starts with TradingView → Falls back to Lightweight Charts → Falls back to Yahoo Finance
+                Starts with ApexCharts → Falls back to Lightweight Charts → Falls back to Placeholder
               </span>
             </div>
             
             <div>
               <strong className="text-gray-900 dark:text-white">Symbol Mapping:</strong> 
               <span className="ml-2">
-                Automatically converts symbols for each provider (e.g., NQ → CME_MINI:NQ1! for TradingView, NQ=F for Yahoo)
+                Automatically converts symbols for each provider (e.g., NQ → NQ for ApexCharts, NQ=F for Lightweight)
               </span>
             </div>
             

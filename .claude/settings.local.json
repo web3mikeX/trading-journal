@@ -62,7 +62,21 @@
       "Bash(tasklist:*)",
       "Bash(find:*)",
       "Bash(/dev/null)",
-      "Bash(wmic process:*)"
+      "Bash(wmic process:*)",
+      "WebFetch(domain:www.tradingview.com)",
+      "Bash(del test-symbol-mapping.js)",
+      "Bash(del test-widget.html)",
+      "WebFetch(domain:www.investing.com)",
+      "WebFetch(domain:uk.investing.com)",
+      "WebFetch(domain:finance.yahoo.com)",
+      "Bash(dir:*)",
+      "Bash(echo $NEXT_PUBLIC_TRADESVIZ_ENABLED)",
+      "WebFetch(domain:lucide.dev)",
+      "WebFetch(domain:tradingview.github.io)",
+      "Bash(time curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(set PORT=3000)",
+      "WebFetch(domain:localhost)"
     ],
     "deny": []
   }

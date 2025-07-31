@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
-import ChartWrapper from "@/components/ChartWrapper"
+import FastLightweightChart from "@/components/FastLightweightChart"
 
 interface Trade {
   id: string
@@ -407,14 +407,14 @@ export default function TradeDetailModal({
                                 <strong>Professional Chart Analysis:</strong> Interactive candlestick chart with precise entry/exit markers and price action visualization
                               </p>
                             </div>
-                            <ChartWrapper
+                            <FastLightweightChart
                               symbol={trade.symbol}
-                              width="100%"
-                              height="500px"
+                              width={800}
+                              height={500}
                               trade={trade}
                               showTradeMarkers={true}
-                              theme={theme}
-                              timeframe="1h"
+                              preferReal={true}
+                              allowFallback={true}
                             />
                           </div>
                         </div>

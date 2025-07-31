@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
     
-    console.log(`Market data request: ${symbol}, ${days} days, preferReal: ${preferReal}`)
+    console.log(`Enhanced market data request: ${symbol}, ${days} days, preferReal: ${preferReal}`)
     
     // Get enhanced market data
     const marketData = await getEnhancedMarketData(symbol, days, preferReal)
@@ -55,12 +55,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response, { 
       status: 200,
       headers: {
-        'Cache-Control': marketData.dataSource === 'yahoo_finance' ? 'public, max-age=300' : 'public, max-age=60'
+        'Cache-Control': marketData.dataSource === 'yahoo_finance' ? 'public, max-age=900' : 'public, max-age=300'
       }
     })
     
   } catch (error) {
-    console.error('Market data API error:', error)
+    console.error('Enhanced market data API error:', error)
     
     return NextResponse.json({
       error: 'Failed to fetch market data',
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// OPTIONS handler for CORS if needed
+// OPTIONS handler for CORS
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, {
     status: 200,

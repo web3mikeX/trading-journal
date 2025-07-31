@@ -1,11 +1,9 @@
 "use client"
 
 import { useState, useEffect, memo } from "react"
-import ApexFinancialChart from "@/components/ApexFinancialChart"
-import LightweightChart from "@/components/LightweightChart"
-import LightweightChartReal from "@/components/LightweightChartReal"
+import InstantChart from "@/components/InstantChart"
 
-type ChartProvider = 'apexcharts' | 'lightweight_real' | 'lightweight' | 'placeholder'
+type ChartProvider = 'canvas' | 'apexcharts' | 'placeholder'
 
 interface UnifiedChartProps {
   symbol: string
@@ -20,24 +18,8 @@ interface UnifiedChartProps {
 
 // Symbol mapping for different providers
 const symbolMappings = {
-  apexcharts: (symbol: string) => {
-    // ApexCharts will use the symbol as-is since we're generating sample data
-    return symbol
-  },
-  lightweight_real: (symbol: string) => {
-    // Real lightweight charts use symbol as-is, market data service handles mapping
-    return symbol
-  },
-  lightweight: (symbol: string) => {
-    // Lightweight charts symbol format (placeholder version)
-    if (symbol.includes('NQ')) return 'NQ=F'
-    if (symbol.includes('MNQ')) return 'MNQ=F'
-    if (symbol.includes('ES')) return 'ES=F'
-    if (symbol === 'QQQ') return 'QQQ'
-    if (symbol.includes('EUR')) return 'EURUSD=X'
-    if (symbol.includes('BTC')) return 'BTC-USD'
-    return symbol
-  },
+  canvas: (symbol: string) => symbol,
+  apexcharts: (symbol: string) => symbol,
   placeholder: (symbol: string) => symbol
 }
 
@@ -47,7 +29,7 @@ function UnifiedChart({
   height = 300,
   interval = "D",
   className = "",
-  preferredProvider = 'lightweight_real',
+  preferredProvider = 'canvas',
   allowFallback = true,
   onProviderChange
 }: UnifiedChartProps) {
@@ -56,7 +38,7 @@ function UnifiedChart({
   const [isLoading, setIsLoading] = useState(true)
 
   // Provider priority order for fallbacks
-  const providerOrder: ChartProvider[] = ['lightweight_real', 'apexcharts', 'lightweight', 'placeholder']
+  const providerOrder: ChartProvider[] = ['canvas', 'apexcharts', 'placeholder']
 
   const handleProviderError = (provider: ChartProvider) => {
     console.warn(`Chart provider ${provider} failed for symbol ${symbol}`)
@@ -83,6 +65,14 @@ function UnifiedChart({
     setIsLoading(false)
   }
 
+  // For instant loading providers, mark as loaded immediately
+  useEffect(() => {
+    if (currentProvider === 'canvas' || currentProvider === 'apexcharts' || currentProvider === 'placeholder') {
+      setIsLoading(false)
+      handleProviderLoad()
+    }
+  }, [currentProvider])
+
   // Reset failed providers when symbol changes
   useEffect(() => {
     setFailedProviders(new Set())
@@ -98,52 +88,35 @@ function UnifiedChart({
     const mappedSymbol = getMappedSymbol(currentProvider)
     
     switch (currentProvider) {
+      case 'canvas':
+        return (
+          <InstantChart
+            symbol={mappedSymbol}
+            width={width}
+            height={height}
+            onLoad={() => {
+              console.log(`✅ Canvas chart loaded for ${symbol}`)
+              handleProviderLoad()
+            }}
+          />
+        )
+      
       case 'apexcharts':
-        // Create a mock trade object for ApexFinancialChart
-        const mockTrade = {
-          id: `mock-${symbol}-${Date.now()}`,
-          symbol: mappedSymbol,
-          side: 'LONG' as const,
-          entryDate: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-          exitDate: new Date(),
-          entryPrice: 20000 + Math.random() * 1000,
-          exitPrice: 20000 + Math.random() * 1000,
-          quantity: 1,
-          market: 'FUTURES'
-        }
-        
         return (
-          <ApexFinancialChart
-            trade={mockTrade}
-            width={width}
-            height={height}
-            className="rounded overflow-hidden"
-          />
-        )
-      
-      case 'lightweight_real':
-        return (
-          <LightweightChartReal
-            symbol={mappedSymbol}
-            width={width}
-            height={height}
-            interval={interval}
-            className="rounded overflow-hidden"
-            onLoad={handleProviderLoad}
-            showTradeMarkers={false} // No trade markers in unified chart mode
-          />
-        )
-      
-      case 'lightweight':
-        return (
-          <LightweightChart
-            symbol={mappedSymbol}
-            width={width}
-            height={height}
-            interval={interval}
-            className="rounded overflow-hidden"
-            onLoad={handleProviderLoad}
-          />
+          <div 
+            className="flex items-center justify-center bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700"
+            style={{ width: `${width}px`, height: `${height}px` }}
+          >
+            <div className="text-center p-4">
+              <div className="text-blue-500 dark:text-blue-400 mb-2">📈</div>
+              <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+                ApexCharts Demo
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                Synthetic chart for {symbol}
+              </div>
+            </div>
+          </div>
         )
       
       case 'placeholder':

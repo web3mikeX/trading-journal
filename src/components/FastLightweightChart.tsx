@@ -1,13 +1,35 @@
 "use client"
 
-import { useEffect, useRef, useState, memo, useCallback, useMemo } from "react"
+import { useEffect, useRef, useState, memo } from "react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getEnhancedMarketData, type MarketDataResult } from "@/services/enhancedMarketData"
 
-// Dynamic import to avoid SSR issues
+// Preload the library at module level for faster access
 let LightweightChartsModule: any = null
 let createChart: any = null
-let createSeriesMarkers: any = null
+let isLibraryLoading = false
+let libraryLoadPromise: Promise<any> | null = null
+
+// Start loading the library immediately when module is imported
+const preloadLibrary = () => {
+  if (LightweightChartsModule || isLibraryLoading) return libraryLoadPromise
+
+  isLibraryLoading = true
+  libraryLoadPromise = import('lightweight-charts').then(module => {
+    LightweightChartsModule = module
+    createChart = module.createChart
+    isLibraryLoading = false
+    return module
+  }).catch(error => {
+    isLibraryLoading = false
+    throw error
+  })
+
+  return libraryLoadPromise
+}
+
+// Start preloading immediately
+preloadLibrary()
 
 interface Trade {
   id: string
@@ -21,7 +43,7 @@ interface Trade {
   netPnL?: number
 }
 
-interface LightweightChartRealProps {
+interface FastLightweightChartProps {
   symbol?: string
   trade?: Trade
   width?: number
@@ -34,7 +56,7 @@ interface LightweightChartRealProps {
   allowFallback?: boolean
 }
 
-function LightweightChartReal({
+function FastLightweightChart({
   symbol = "NQ",
   trade,
   width = 800,
@@ -45,93 +67,63 @@ function LightweightChartReal({
   showTradeMarkers = true,
   preferReal = true,
   allowFallback = true
-}: LightweightChartRealProps) {
+}: FastLightweightChartProps) {
   const { theme } = useTheme()
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<any>(null)
   const seriesRef = useRef<any>(null)
   
-  const [isLoading, setIsLoading] = useState(true)
+  const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [marketData, setMarketData] = useState<MarketDataResult | null>(null)
-  const [isLibraryLoaded, setIsLibraryLoaded] = useState(false)
-  const [loadingStage, setLoadingStage] = useState<'library' | 'data' | 'chart' | 'complete'>('library')
-  const [showEarlyChart, setShowEarlyChart] = useState(false)
+  const [loadingProgress, setLoadingProgress] = useState(0)
 
-  // Load TradingView Lightweight Charts library
+  // Parallel loading: Start data fetch immediately while library loads
   useEffect(() => {
-    const loadLibrary = async () => {
-      if (LightweightChartsModule) {
-        setIsLibraryLoaded(true)
-        return
-      }
-
-      try {
-        LightweightChartsModule = await import('lightweight-charts')
-        createChart = LightweightChartsModule.createChart
-        createSeriesMarkers = LightweightChartsModule.createSeriesMarkers
-        setIsLibraryLoaded(true)
-        setLoadingStage('data')
-        // Library successfully loaded
-      } catch (error) {
-        console.error('Failed to load TradingView Lightweight Charts:', error)
-        setError('Failed to load charting library')
-      }
-    }
-
-    loadLibrary()
-  }, [])
-
-  // Simplified data fetching - no memoization complexity
-  useEffect(() => {
-    if (!symbol) return
-
     let isCancelled = false
 
-    const fetchData = async () => {
+    const loadEverything = async () => {
       try {
-        setIsLoading(true)
-        setLoadingStage('data')
-        setError(null)
+        setLoadingProgress(10)
         
-        const data = await getEnhancedMarketData(symbol, 7, preferReal)
+        // Start both library and data loading in parallel
+        const libraryPromise = preloadLibrary()
+        const dataPromise = getEnhancedMarketData(symbol, 7, preferReal)
         
+        setLoadingProgress(30)
+        
+        // Wait for data first (usually faster)
+        const data = await dataPromise
         if (!isCancelled) {
           setMarketData(data)
-          setLoadingStage('chart')
-          // Data loaded successfully
+          setLoadingProgress(60)
         }
+        
+        // Wait for library
+        await libraryPromise
+        if (!isCancelled) {
+          setLoadingProgress(90)
+          setIsReady(true)
+          setLoadingProgress(100)
+        }
+        
       } catch (err) {
         if (!isCancelled) {
-          // Market data fetch failed
-          setError(err instanceof Error ? err.message : 'Failed to fetch market data')
-          setIsLoading(false)
+          setError(err instanceof Error ? err.message : 'Failed to load chart')
         }
       }
     }
 
-    fetchData()
+    loadEverything()
 
     return () => {
       isCancelled = true
     }
-  }, [symbol])
+  }, [symbol, preferReal])
 
-  // Memoize chart data conversion to prevent unnecessary recalculations
-  const chartData = useMemo(() => {
-    if (!marketData?.data) return []
-    return marketData.data.map(item => ({
-      time: Math.floor(item.timestamp / 1000), // TradingView expects seconds
-      open: item.open,
-      high: item.high,
-      low: item.low,
-      close: item.close,
-    }))
-  }, [marketData?.data])
-
-  // Initialize and configure chart
+  // Chart creation effect - runs after both library and data are ready
   useEffect(() => {
-    if (!isLibraryLoaded || !marketData?.data?.length || !chartContainerRef.current || !createChart) {
+    if (!isReady || !marketData?.data?.length || !chartContainerRef.current || !createChart) {
       return
     }
 
@@ -145,7 +137,7 @@ function LightweightChartReal({
         seriesRef.current = null
       }
 
-      // Create chart with theme-appropriate colors
+      // Create chart with optimized settings
       const chart = createChart(container, {
         width,
         height,
@@ -157,12 +149,8 @@ function LightweightChartReal({
           textColor: theme === 'dark' ? '#f9fafb' : '#1f2937',
         },
         grid: {
-          vertLines: {
-            color: theme === 'dark' ? '#374151' : '#e5e7eb',
-          },
-          horzLines: {
-            color: theme === 'dark' ? '#374151' : '#e5e7eb',
-          },
+          vertLines: { color: theme === 'dark' ? '#374151' : '#e5e7eb' },
+          horzLines: { color: theme === 'dark' ? '#374151' : '#e5e7eb' },
         },
         crosshair: {
           mode: LightweightChartsModule.CrosshairMode.Normal,
@@ -177,7 +165,7 @@ function LightweightChartReal({
 
       chartRef.current = chart
 
-      // Create candlestick series using v5 API
+      // Create candlestick series
       const candlestickSeries = chart.addSeries(LightweightChartsModule.CandlestickSeries, {
         upColor: '#22c55e',
         downColor: '#ef4444',
@@ -189,25 +177,19 @@ function LightweightChartReal({
 
       seriesRef.current = candlestickSeries
 
-      // Use memoized chart data
+      // Convert and set data
+      const chartData = marketData.data.map(item => ({
+        time: Math.floor(item.timestamp / 1000),
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+      }))
 
-      // Set the data
       candlestickSeries.setData(chartData)
-
-      // Auto-fit chart content immediately
       chart.timeScale().fitContent()
 
-      // Mark loading as complete - chart is ready even without markers
-      setIsLoading(false)
-      setLoadingStage('complete')
-      setShowEarlyChart(true)
-
-      // Call onLoad callback early
-      if (onLoad) {
-        onLoad()
-      }
-
-      // Add trade markers if trade data is provided (async, non-blocking)
+      // Add trade markers if provided
       if (trade && showTradeMarkers) {
         setTimeout(() => {
           try {
@@ -223,7 +205,7 @@ function LightweightChartReal({
               text: `Entry: $${trade.entryPrice.toFixed(2)}`,
             })
 
-            // Exit marker (if available)
+            // Exit marker if available
             if (trade.exitDate && trade.exitPrice) {
               const exitTime = Math.floor(trade.exitDate.getTime() / 1000)
               const isProfit = trade.side === 'LONG' 
@@ -239,27 +221,19 @@ function LightweightChartReal({
               })
             }
 
-            // Use v5 markers API
-            if (typeof createSeriesMarkers === 'function') {
-              const seriesMarkers = createSeriesMarkers(candlestickSeries, markers)
-              // Trade markers added successfully
-            } else {
-              // Markers API not available
-            }
+            candlestickSeries.setMarkers(markers)
           } catch (markersError) {
-            // Failed to add trade markers, continuing without them
-            // Continue without markers rather than failing completely
+            // Continue without markers if they fail
           }
-        }, 100) // Add markers after chart is displayed
+        }, 50)
       }
 
-      // Auto-fit chart content
-      chart.timeScale().fitContent()
-
-      // Chart initialization completed
+      // Call onLoad callback
+      if (onLoad) {
+        setTimeout(onLoad, 100)
+      }
 
     } catch (error) {
-      // Chart initialization failed
       setError('Failed to initialize chart')
     }
 
@@ -269,33 +243,18 @@ function LightweightChartReal({
         try {
           chartRef.current.remove()
         } catch (e) {
-          // Chart cleanup completed
+          // Ignore cleanup errors
         }
         chartRef.current = null
         seriesRef.current = null
       }
     }
-  }, [isLibraryLoaded, marketData, theme, width, height, trade, showTradeMarkers])
+  }, [isReady, marketData, theme, width, height, trade, showTradeMarkers, onLoad])
 
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (chartRef.current && chartContainerRef.current) {
-        const container = chartContainerRef.current
-        chartRef.current.applyOptions({
-          width: container.clientWidth,
-          height: container.clientHeight,
-        })
-      }
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  if (!isLibraryLoaded || isLoading) {
+  // Loading state with progress
+  if (!isReady || !marketData) {
     return (
-      <div className={`lightweight-chart-container ${className}`}>
+      <div className={`fast-chart-container ${className}`}>
         <div
           style={{
             width: `${width}px`,
@@ -310,12 +269,25 @@ function LightweightChartReal({
           }}
         >
           <div className="text-center p-4">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+            {/* Progress bar */}
+            <div className="w-48 h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-4 mx-auto">
+              <div 
+                className="h-2 bg-blue-500 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${loadingProgress}%` }}
+              ></div>
+            </div>
+            
+            {/* Fast loading skeleton */}
+            <div className="mb-4">
+              <div className="w-24 h-6 bg-gray-300 dark:bg-gray-600 rounded animate-pulse mx-auto mb-2"></div>
+              <div className="w-32 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto"></div>
+            </div>
+            
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              {loadingStage === 'library' && 'Loading...'}
-              {loadingStage === 'data' && `${symbol}...`}
-              {loadingStage === 'chart' && 'Chart...'}
-              {!isLibraryLoaded && isLoading && 'Loading...'}
+              {loadingProgress < 30 ? 'Loading data...' :
+               loadingProgress < 60 ? 'Processing...' :
+               loadingProgress < 90 ? 'Preparing chart...' :
+               'Almost ready...'}
             </div>
           </div>
         </div>
@@ -323,9 +295,10 @@ function LightweightChartReal({
     )
   }
 
+  // Error state
   if (error) {
     return (
-      <div className={`lightweight-chart-container ${className}`}>
+      <div className={`fast-chart-container ${className}`}>
         <div
           style={{
             width: `${width}px`,
@@ -342,7 +315,7 @@ function LightweightChartReal({
           <div className="text-center p-6">
             <div className="text-red-500 mb-2">⚠️</div>
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              Chart Error: {error}
+              {error}
             </div>
             <div className="text-xs text-gray-500 mt-2">
               Symbol: {symbol}
@@ -353,8 +326,9 @@ function LightweightChartReal({
     )
   }
 
+  // Success state - chart rendered
   return (
-    <div className={`lightweight-chart-container ${className}`}>
+    <div className={`fast-chart-container ${className}`}>
       <div
         ref={chartContainerRef}
         style={{
@@ -375,21 +349,22 @@ function LightweightChartReal({
         </span>
         <span className="mx-2">•</span>
         <span>
-          {marketData?.dataSource === 'yahoo_finance' ? 'Real Market Data' : 
-           marketData?.dataSource === 'enhanced_synthetic' ? 'Enhanced Synthetic' : 
-           'Market Data'}
+          {marketData?.dataSource === 'yahoo_finance' ? 'Live Data' : 
+           marketData?.dataSource === 'alpha_vantage' ? 'Market Data' :
+           marketData?.dataSource === 'enhanced_synthetic' ? 'Demo Data' : 
+           'Real-time'}
         </span>
         {marketData?.data && (
           <>
             <span className="mx-2">•</span>
-            <span>{marketData.data.length} data points</span>
+            <span>{marketData.data.length} points</span>
           </>
         )}
       </div>
       
       {/* Data source explanation */}
       {marketData?.metadata?.explanation && (
-        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 text-center italic">
+        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 text-center italic opacity-75">
           {marketData.metadata.explanation}
         </div>
       )}
@@ -397,4 +372,4 @@ function LightweightChartReal({
   )
 }
 
-export default memo(LightweightChartReal)
+export default memo(FastLightweightChart)
