@@ -146,6 +146,7 @@ model JournalEntry {
   confidence Int?
   excitement Int?
   fear       Int?
+  images     String?
   trade      Trade?   @relation(fields: [tradeId], references: [id], onDelete: Cascade)
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

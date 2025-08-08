@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -69,11 +70,12 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/auth/signin",
+    error: "/auth/error", // Custom error page
   },
   events: {
     async signOut() {
       // Clear any additional session data if needed
     },
   },
-  debug: process.env.NODE_ENV === 'development',
+  debug: false,
 }

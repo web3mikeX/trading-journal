@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chart Fix Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🧪 TradingView Chart Fix Test</h1>
+    
+    <div id="results"></div>
+    
+    <script type="module">
+        const results = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+        
+        async function testChartCreation() {
+            addResult('🔄 Starting TradingView library test...');
+            
+            try {
+                // Test 1: Import library
+                addResult('1. Testing library import...');
+                const module = await import('https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.esm.production.js');
+                
+                if (!module.createChart) {
+                    throw new Error('createChart not found in module');
+                }
+                addResult('✅ Library imported successfully', 'success');
+                
+                // Test 2: Validate exports
+                addResult('2. Validating required exports...');
+                const requiredExports = ['createChart', 'LineStyle', 'CrosshairMode'];
+                for (const exportName of requiredExports) {
+                    if (!module[exportName]) {
+                        throw new Error(`Missing export: ${exportName}`);
+                    }
+                }
+                addResult('✅ All required exports found', 'success');
+                
+                // Test 3: Create minimal chart
+                addResult('3. Testing chart creation...');
+                const container = document.createElement('div');
+                container.style.width = '400px';
+                container.style.height = '300px';
+                document.body.appendChild(container);
+                
+                const chart = module.createChart(container, {
+                    width: 400,
+                    height: 300
+                });
+                
+                if (!chart.addCandlestickSeries) {
+                    throw new Error('chart.addCandlestickSeries not found');
+                }
+                addResult('✅ Chart created successfully', 'success');
+                
+                // Test 4: Add candlestick series
+                addResult('4. Testing candlestick series creation...');
+                const series = chart.addCandlestickSeries({
+                    upColor: '#10b981',
+                    downColor: '#f59e0b',
+                });
+                
+                if (!series.setData) {
+                    throw new Error('series.setData not found');
+                }
+                addResult('✅ Candlestick series created successfully', 'success');
+                
+                // Test 5: Set sample data
+                addResult('5. Testing data setting...');
+                const sampleData = [
+                    { time: '2025-01-01', open: 100, high: 105, low: 95, close: 102 },
+                    { time: '2025-01-02', open: 102, high: 108, low: 100, close: 106 },
+                ];
+                series.setData(sampleData);
+                addResult('✅ Data set successfully', 'success');
+                
+                addResult('🎉 ALL TESTS PASSED! Chart fix verified.', 'success');
+                
+            } catch (error) {
+                addResult(`❌ Test failed: ${error.message}`, 'error');
+                console.error('Detailed error:', error);
+            }
+        }
+        
+        // Run the test
+        testChartCreation();
+    </script>
+</body>
+</html>

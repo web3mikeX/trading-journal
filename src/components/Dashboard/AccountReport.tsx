@@ -72,7 +72,6 @@ interface AccountReportProps {
 }
 
 export default function AccountReport({ trades }: AccountReportProps) {
-  console.log('AccountReport component loaded') // Debug log
   const { theme } = useTheme()
   const themeClasses = getThemeClasses(theme)
   const { user } = useAuth()
@@ -93,7 +92,6 @@ export default function AccountReport({ trades }: AccountReportProps) {
         const response = await fetch(`/api/account-metrics?userId=${user.id}&t=${Date.now()}`)
         if (response.ok) {
           const metrics = await response.json()
-          console.log('Account metrics:', metrics) // Debug log
           setAccountMetrics(metrics)
         } else {
           setAccountMetrics(null)

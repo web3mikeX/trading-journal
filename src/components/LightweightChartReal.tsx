@@ -82,7 +82,7 @@ function LightweightChartReal({
     loadLibrary()
   }, [])
 
-  // Simplified data fetching - no memoization complexity
+  // Enhanced data fetching with timeframe support
   useEffect(() => {
     if (!symbol) return
 
@@ -94,16 +94,31 @@ function LightweightChartReal({
         setLoadingStage('data')
         setError(null)
         
-        const data = await getEnhancedMarketData(symbol, 7, preferReal)
+        // Get trade context for better synthetic data
+        const tradeContext = trade ? {
+          entryPrice: trade.entryPrice,
+          exitPrice: trade.exitPrice,
+          entryDate: trade.entryDate,
+          exitDate: trade.exitDate
+        } : undefined
+        
+        // Default to daily data with enhanced volatility
+        const data = await getEnhancedMarketData(
+          symbol, 
+          7, 
+          preferReal, 
+          tradeContext,
+          interval || '1d'
+        )
         
         if (!isCancelled) {
           setMarketData(data)
           setLoadingStage('chart')
-          // Data loaded successfully
+          console.log(`✅ LightweightChartReal: Data loaded - ${data.dataSource}, ${data.data.length} points`)
         }
       } catch (err) {
         if (!isCancelled) {
-          // Market data fetch failed
+          console.error('LightweightChartReal: Market data fetch failed:', err)
           setError(err instanceof Error ? err.message : 'Failed to fetch market data')
           setIsLoading(false)
         }
@@ -115,7 +130,7 @@ function LightweightChartReal({
     return () => {
       isCancelled = true
     }
-  }, [symbol])
+  }, [symbol, preferReal, trade, interval])
 
   // Memoize chart data conversion to prevent unnecessary recalculations
   const chartData = useMemo(() => {
@@ -375,9 +390,11 @@ function LightweightChartReal({
         </span>
         <span className="mx-2">•</span>
         <span>
-          {marketData?.dataSource === 'yahoo_finance' ? 'Real Market Data' : 
-           marketData?.dataSource === 'enhanced_synthetic' ? 'Enhanced Synthetic' : 
-           'Market Data'}
+          {marketData?.dataSource === 'yahoo_finance' ? 'Live Market Data' : 
+           marketData?.dataSource === 'alpha_vantage' ? 'Market Data' :
+           marketData?.dataSource === 'enhanced_synthetic' ? 'Enhanced Demo Data' : 
+           marketData?.dataSource === 'synthetic' ? 'Demo Data' :
+           'Real-time Data'}
         </span>
         {marketData?.data && (
           <>

@@ -6,6 +6,7 @@ import { PlusIcon, BookOpenIcon, SearchIcon, FilterIcon, HeartIcon, TrendingUpIc
 import Header from "@/components/Header"
 import NewEntryModal from "@/components/NewEntryModal"
 import ExportButton from "@/components/ExportButton"
+import JournalImageGallery from "@/components/JournalImageGallery"
 import { useTheme } from "@/components/ThemeProvider"
 import { getThemeClasses } from "@/lib/theme"
 import { useJournal } from "@/hooks/useJournal"
@@ -30,7 +31,7 @@ export default function Journal() {
     fear?: number;
     excitement?: number;
     tradeId?: string;
-  }) => {
+  }, images?: File[]) => {
     if (editingEntry) {
       const result = await updateEntry(editingEntry.id, newEntry)
       if (result) {
@@ -38,7 +39,7 @@ export default function Journal() {
         setEditingEntry(null)
       }
     } else {
-      const result = await createEntry(newEntry)
+      const result = await createEntry(newEntry, images)
       if (result) {
         setIsModalOpen(false)
       }
@@ -189,7 +190,7 @@ export default function Journal() {
           </div>
           
           <div className="space-y-6">
-            {entries.map((entry, index) => (
+            {entries && entries.length > 0 ? entries.map((entry, index) => (
               <motion.div
                 key={entry.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -241,6 +242,8 @@ export default function Journal() {
                 
                 <p className={`${themeClasses.textSecondary} mb-4 line-clamp-2`}>{entry.content}</p>
                 
+                {entry.images && <JournalImageGallery images={entry.images} className="mb-4" />}
+                
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4 flex-wrap">
                     {entry.mood && (
@@ -286,14 +289,21 @@ export default function Journal() {
                   )}
                 </div>
               </motion.div>
-            ))}
+            )) : (
+              !loading && (
+                <div className="text-center py-12">
+                  <BookOpenIcon className={`w-12 h-12 ${themeClasses.textSecondary} mx-auto mb-4`} />
+                  <h3 className={`text-lg font-medium ${themeClasses.text} mb-2`}>No journal entries yet</h3>
+                  <p className={themeClasses.textSecondary}>Start documenting your trading journey</p>
+                </div>
+              )
+            )}
           </div>
           
-          {entries.length === 0 && !loading && (
+          {loading && (
             <div className="text-center py-12">
-              <BookOpenIcon className={`w-12 h-12 ${themeClasses.textSecondary} mx-auto mb-4`} />
-              <h3 className={`text-lg font-medium ${themeClasses.text} mb-2`}>No journal entries yet</h3>
-              <p className={themeClasses.textSecondary}>Start documenting your trading journey</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+              <p className={`mt-4 ${themeClasses.textSecondary}`}>Loading journal entries...</p>
             </div>
           )}
         </motion.div>

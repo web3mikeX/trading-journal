@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { saveImages, formatImagePaths } from '@/lib/serverImageUpload'
 
 const createJournalEntrySchema = z.object({
   title: z.string().max(200, 'Title must be less than 200 characters').default('Untitled Entry'),
@@ -13,6 +14,7 @@ const createJournalEntrySchema = z.object({
   excitement: z.number().min(1).max(5).optional(),
   tradeId: z.string().optional(),
   userId: z.string().optional(), // Make optional, will be set from auth
+  images: z.string().optional(), // For storing comma-separated image paths
   metadata: z.object({
     importCount: z.number().optional(),
     importSummary: z.string().optional(),
@@ -94,8 +96,36 @@ export async function GET(request: NextRequest) {
 // POST /api/journal - Create a new journal entry
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const contentType = request.headers.get('content-type') || ''
+    let body: any = {}
+    let images: File[] = []
+
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData with images
+      const formData = await request.formData()
+      
+      // Extract form fields
+      for (const [key, value] of formData.entries()) {
+        if (key === 'images') {
+          if (value instanceof File) {
+            images.push(value)
+          }
+        } else {
+          // Convert string values to appropriate types
+          if (key === 'mood' || key === 'confidence' || key === 'fear' || key === 'excitement') {
+            body[key] = value ? parseInt(value as string) : undefined
+          } else {
+            body[key] = value
+          }
+        }
+      }
+    } else {
+      // Handle JSON request
+      body = await request.json()
+    }
+
     console.log('📝 Journal API received request body:', body)
+    console.log('📝 Number of images received:', images.length)
     
     // Set demo user ID if not provided
     if (!body.userId) {
@@ -108,6 +138,14 @@ export async function POST(request: NextRequest) {
       const importCount = body.metadata?.importCount || 0
       body.title = `Post-Import Reflection - ${importCount} trade${importCount !== 1 ? 's' : ''} imported`
       body.entryType = 'POST_TRADE'
+    }
+
+    // Save images if any were uploaded
+    if (images.length > 0) {
+      console.log('📝 Saving uploaded images...')
+      const savedImagePaths = await saveImages(images)
+      body.images = formatImagePaths(savedImagePaths)
+      console.log('📝 Images saved:', savedImagePaths)
     }
     
     console.log('📝 Validating data with schema...')

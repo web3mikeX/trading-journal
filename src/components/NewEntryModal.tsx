@@ -20,7 +20,7 @@ interface NewEntryModalProps {
     fear?: number;
     excitement?: number;
     tradeId?: string;
-  }) => Promise<any>
+  }, images?: File[]) => Promise<any>
   editingEntry?: any
 }
 
@@ -80,7 +80,7 @@ export default function NewEntryModal({ isOpen, onClose, onSave, editingEntry }:
         fear,
         excitement,
         tradeId
-      })
+      }, images)
       
       if (result) {
         resetForm()

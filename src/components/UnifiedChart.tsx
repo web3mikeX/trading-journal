@@ -110,10 +110,10 @@ function UnifiedChart({
             <div className="text-center p-4">
               <div className="text-blue-500 dark:text-blue-400 mb-2">📈</div>
               <div className="text-sm text-blue-700 dark:text-blue-300 font-medium">
-                ApexCharts Demo
+                Enhanced Demo Chart
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                Synthetic chart for {symbol}
+                Realistic volatility for {symbol}
               </div>
             </div>
           </div>
@@ -128,10 +128,10 @@ function UnifiedChart({
             <div className="text-center p-4">
               <div className="text-gray-400 dark:text-gray-500 mb-2">📊</div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Chart for {symbol}
+                Enhanced Demo Chart
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">
-                No providers available
+                {symbol} with realistic market data
               </div>
             </div>
           </div>

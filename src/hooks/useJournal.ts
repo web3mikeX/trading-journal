@@ -11,6 +11,7 @@ interface JournalEntry {
   fear?: number
   excitement?: number
   tradeId?: string
+  images?: string
   createdAt: string
   updatedAt: string
   trade?: {
@@ -108,22 +109,49 @@ export const useJournal = () => {
   }
 
   // Create new journal entry
-  const createEntry = async (data: CreateJournalEntryData): Promise<JournalEntry | null> => {
+  const createEntry = async (data: CreateJournalEntryData, images?: File[]): Promise<JournalEntry | null> => {
     if (!user?.id) return null
 
     setError(null)
 
     try {
-      const response = await fetch('/api/journal', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...data,
-          userId: user.id
+      let response: Response
+
+      if (images && images.length > 0) {
+        // Use FormData for image uploads
+        const formData = new FormData()
+        
+        // Add text fields
+        Object.entries(data).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            formData.append(key, value.toString())
+          }
         })
-      })
+        
+        formData.append('userId', user.id)
+        
+        // Add images
+        images.forEach((image) => {
+          formData.append('images', image)
+        })
+
+        response = await fetch('/api/journal', {
+          method: 'POST',
+          body: formData // Don't set Content-Type header, let browser set it with boundary
+        })
+      } else {
+        // Use JSON for text-only entries
+        response = await fetch('/api/journal', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...data,
+            userId: user.id
+          })
+        })
+      }
 
       if (!response.ok) {
         const errorData = await response.json()

@@ -43,57 +43,126 @@ export default function InstantChart({
       ctx.strokeStyle = '#e5e7eb'
       ctx.strokeRect(0, 0, width, height)
       
-      // Generate sample candlestick data instantly
-      const dataPoints = 20
+      // Generate enhanced sample candlestick data with realistic volatility
+      const dataPoints = 30
       const padding = 40
       const chartWidth = width - padding * 2
       const chartHeight = height - padding * 2
       
-      // Generate synthetic price data
-      let basePrice = symbol.includes('NQ') ? 20000 : 
-                      symbol.includes('ES') ? 5000 : 
-                      symbol.includes('GC') ? 2000 : 100
+      // Enhanced base prices and volatility
+      const priceConfig = {
+        'NQ': { base: 21500, vol: 0.035 },
+        'MNQ': { base: 21500, vol: 0.035 },
+        'MNQU5': { base: 22500, vol: 0.035 },
+        'ES': { base: 6100, vol: 0.025 },
+        'MES': { base: 6100, vol: 0.025 },
+        'RTY': { base: 2350, vol: 0.045 },
+        'GC': { base: 2650, vol: 0.030 },
+        'CL': { base: 78, vol: 0.055 },
+        'BTC': { base: 98000, vol: 0.065 },
+        'ETH': { base: 3800, vol: 0.075 },
+        'QQQ': { base: 525, vol: 0.028 },
+        'SPY': { base: 610, vol: 0.020 },
+        'VIX': { base: 14, vol: 0.15 }
+      }
       
-      const candleWidth = chartWidth / dataPoints * 0.8
+      // Get symbol config
+      const baseSymbol = symbol.replace(/[HMU Z]\d{2}$/, '')
+      const config = priceConfig[baseSymbol as keyof typeof priceConfig] || 
+                    priceConfig[symbol as keyof typeof priceConfig] || 
+                    { base: 1000, vol: 0.025 }
+      
+      let basePrice = config.base
+      const volatility = config.vol
+      
+      const candleWidth = chartWidth / dataPoints * 0.75
+      let trendDirection = (Math.random() - 0.5) * 0.3
+      
+      // Track price range for better scaling
+      const prices: number[] = []
+      
+      for (let i = 0; i < dataPoints; i++) {
+        // Enhanced price movement with trend and volatility clustering
+        const trendMove = trendDirection * volatility * 0.5
+        const randomMove = (Math.random() - 0.5) * volatility
+        const totalMove = trendMove + randomMove
+        
+        const open = basePrice
+        const close = basePrice * (1 + totalMove)
+        
+        // Create realistic intrabar range
+        const rangeSize = volatility * basePrice * (0.5 + Math.random() * 0.8)
+        const high = Math.max(open, close) + Math.random() * rangeSize * 0.6
+        const low = Math.min(open, close) - Math.random() * rangeSize * 0.6
+        
+        prices.push(high, low, open, close)
+        basePrice = close
+        
+        // Update trend with some persistence and mean reversion
+        trendDirection = trendDirection * 0.8 + (Math.random() - 0.5) * 0.2
+      }
+      
+      // Calculate dynamic price range for optimal scaling
+      const minPrice = Math.min(...prices)
+      const maxPrice = Math.max(...prices)
+      const priceRange = maxPrice - minPrice
+      const buffer = priceRange * 0.1 // 10% buffer
+      const chartMinPrice = minPrice - buffer
+      const chartMaxPrice = maxPrice + buffer
+      const chartPriceRange = chartMaxPrice - chartMinPrice
+      
+      // Reset base price and trend for actual drawing
+      basePrice = config.base
+      trendDirection = (Math.random() - 0.5) * 0.3
       
       for (let i = 0; i < dataPoints; i++) {
         const x = padding + (i * chartWidth / dataPoints) + (chartWidth / dataPoints - candleWidth) / 2
         
-        // Create realistic price movement
-        const variation = basePrice * 0.002 // 0.2% variation
-        const trend = (Math.random() - 0.5) * variation
-        basePrice += trend
+        // Recreate the same price movement
+        const trendMove = trendDirection * volatility * 0.5
+        const randomMove = (Math.random() - 0.5) * volatility
+        const totalMove = trendMove + randomMove
         
-        const open = basePrice + (Math.random() - 0.5) * variation
-        const close = basePrice + (Math.random() - 0.5) * variation
-        const high = Math.max(open, close) + Math.random() * variation
-        const low = Math.min(open, close) - Math.random() * variation
+        const open = basePrice
+        const close = basePrice * (1 + totalMove)
         
-        // Normalize to chart area
-        const priceRange = basePrice * 0.05 // 5% range
-        const minPrice = basePrice - priceRange / 2
-        const maxPrice = basePrice + priceRange / 2
+        const rangeSize = volatility * basePrice * (0.5 + Math.random() * 0.8)
+        const high = Math.max(open, close) + Math.random() * rangeSize * 0.6
+        const low = Math.min(open, close) - Math.random() * rangeSize * 0.6
         
-        const highY = padding + (maxPrice - high) / priceRange * chartHeight
-        const lowY = padding + (maxPrice - low) / priceRange * chartHeight
-        const openY = padding + (maxPrice - open) / priceRange * chartHeight
-        const closeY = padding + (maxPrice - close) / priceRange * chartHeight
+        // Convert prices to screen coordinates
+        const highY = padding + ((chartMaxPrice - high) / chartPriceRange) * chartHeight
+        const lowY = padding + ((chartMaxPrice - low) / chartPriceRange) * chartHeight
+        const openY = padding + ((chartMaxPrice - open) / chartPriceRange) * chartHeight
+        const closeY = padding + ((chartMaxPrice - close) / chartPriceRange) * chartHeight
         
         const isGreen = close > open
         
-        // Draw wick
-        ctx.strokeStyle = isGreen ? '#22c55e' : '#ef4444'
-        ctx.lineWidth = 1
+        // Draw wick with better styling
+        ctx.strokeStyle = isGreen ? '#10b981' : '#ef4444'
+        ctx.lineWidth = Math.max(1, candleWidth * 0.1)
         ctx.beginPath()
         ctx.moveTo(x + candleWidth / 2, highY)
         ctx.lineTo(x + candleWidth / 2, lowY)
         ctx.stroke()
         
-        // Draw body
-        ctx.fillStyle = isGreen ? '#22c55e' : '#ef4444'
+        // Draw body with proper hollow/filled candles
         const bodyTop = Math.min(openY, closeY)
-        const bodyHeight = Math.abs(closeY - openY)
-        ctx.fillRect(x, bodyTop, candleWidth, Math.max(bodyHeight, 1))
+        const bodyHeight = Math.max(Math.abs(closeY - openY), 1)
+        
+        if (isGreen) {
+          // Green candle - hollow
+          ctx.strokeStyle = '#10b981'
+          ctx.lineWidth = 1
+          ctx.strokeRect(x, bodyTop, candleWidth, bodyHeight)
+        } else {
+          // Red candle - filled
+          ctx.fillStyle = '#ef4444'
+          ctx.fillRect(x, bodyTop, candleWidth, bodyHeight)
+        }
+        
+        basePrice = close
+        trendDirection = trendDirection * 0.8 + (Math.random() - 0.5) * 0.2
       }
       
       // Draw labels
@@ -130,7 +199,7 @@ export default function InstantChart({
       />
       
       <div className="text-xs text-gray-500 text-center mt-1">
-        {symbol} • Instant Chart (Synthetic Data)
+        {symbol} • Enhanced Demo Chart ({dataPoints} candles)
       </div>
     </div>
   )

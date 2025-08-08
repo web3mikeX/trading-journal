@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, memo } from "react"
 import { useTheme } from "@/components/ThemeProvider"
 import { getEnhancedMarketData, type MarketDataResult } from "@/services/enhancedMarketData"
+import dynamic from "next/dynamic"
 
 // Preload the library at module level for faster access
 let LightweightChartsModule: any = null
@@ -11,21 +12,47 @@ let isLibraryLoading = false
 let libraryLoadPromise: Promise<any> | null = null
 
 // Start loading the library immediately when module is imported
-const preloadLibrary = () => {
-  if (LightweightChartsModule || isLibraryLoading) return libraryLoadPromise
+const preloadLibrary = async () => {
+  if (LightweightChartsModule) return LightweightChartsModule
+  if (isLibraryLoading) return libraryLoadPromise
 
   isLibraryLoading = true
-  libraryLoadPromise = import('lightweight-charts').then(module => {
+  
+  try {
+    libraryLoadPromise = import('lightweight-charts')
+    const module = await libraryLoadPromise
+    
+    // Debug library loading
+    console.log('TradingView library loaded:', {
+      hasCreateChart: !!module.createChart,
+      createChartType: typeof module.createChart,
+      hasLineStyle: !!module.LineStyle,
+      hasCrosshairMode: !!module.CrosshairMode,
+      moduleKeys: Object.keys(module).slice(0, 15),
+      createChartString: module.createChart ? module.createChart.toString().substring(0, 100) : 'N/A'
+    })
+    
+    // Validate required exports
+    if (!module.createChart || typeof module.createChart !== 'function') {
+      throw new Error('createChart function not found in module')
+    }
+    
+    if (!module.LineStyle || !module.CrosshairMode) {
+      throw new Error('Required chart constants not found in module')
+    }
+    
     LightweightChartsModule = module
     createChart = module.createChart
     isLibraryLoading = false
+    
     return module
-  }).catch(error => {
+  } catch (error) {
+    console.error('Failed to load TradingView library:', error)
     isLibraryLoading = false
+    LightweightChartsModule = null
+    createChart = null
     throw error
-  })
-
-  return libraryLoadPromise
+  }
 }
 
 // Start preloading immediately
@@ -87,24 +114,30 @@ function FastLightweightChart({
         setLoadingProgress(10)
         
         // Start both library and data loading in parallel
-        const libraryPromise = preloadLibrary()
-        const dataPromise = getEnhancedMarketData(symbol, 7, preferReal)
+        const tradeContext = trade ? {
+          entryPrice: trade.entryPrice,
+          exitPrice: trade.exitPrice
+        } : undefined
         
-        setLoadingProgress(30)
+        setLoadingProgress(20)
         
-        // Wait for data first (usually faster)
-        const data = await dataPromise
+        // Load library first to ensure it's ready
+        const libraryModule = await preloadLibrary()
+        setLoadingProgress(50)
+        
+        // Then load data
+        const data = await getEnhancedMarketData(symbol, 7, preferReal, tradeContext)
         if (!isCancelled) {
           setMarketData(data)
-          setLoadingProgress(60)
-        }
-        
-        // Wait for library
-        await libraryPromise
-        if (!isCancelled) {
-          setLoadingProgress(90)
-          setIsReady(true)
-          setLoadingProgress(100)
+          setLoadingProgress(80)
+          
+          // Final validation before marking as ready
+          if (libraryModule && libraryModule.createChart && data?.data?.length) {
+            setIsReady(true)
+            setLoadingProgress(100)
+          } else {
+            throw new Error('Chart prerequisites not met after loading')
+          }
         }
         
       } catch (err) {
@@ -119,7 +152,7 @@ function FastLightweightChart({
     return () => {
       isCancelled = true
     }
-  }, [symbol, preferReal])
+  }, [symbol, preferReal, trade])
 
   // Chart creation effect - runs after both library and data are ready
   useEffect(() => {
@@ -132,100 +165,267 @@ function FastLightweightChart({
     try {
       // Clear any existing chart
       if (chartRef.current) {
-        chartRef.current.remove()
+        try {
+          chartRef.current.remove()
+        } catch (removeError) {
+          console.warn('Chart cleanup warning:', removeError)
+        }
         chartRef.current = null
         seriesRef.current = null
       }
 
-      // Create chart with optimized settings
+      // Validate prerequisites thoroughly
+      if (!LightweightChartsModule) {
+        throw new Error('TradingView Lightweight Charts module not loaded')
+      }
+
+      if (!createChart || typeof createChart !== 'function') {
+        throw new Error('createChart function not available')
+      }
+
+      if (!marketData?.data?.length) {
+        throw new Error('No market data available for chart')
+      }
+
+      // Validate essential chart creation dependencies
+      if (!LightweightChartsModule.LineStyle || !LightweightChartsModule.CrosshairMode) {
+        throw new Error('TradingView Lightweight Charts constants not available')
+      }
+
+      // Create professional-grade chart with optimized settings
       const chart = createChart(container, {
         width,
         height,
         layout: {
           background: {
             type: 'solid',
-            color: theme === 'dark' ? '#1f2937' : '#ffffff',
+            color: theme === 'dark' ? '#0f172a' : '#ffffff',
           },
-          textColor: theme === 'dark' ? '#f9fafb' : '#1f2937',
+          textColor: theme === 'dark' ? '#f1f5f9' : '#1e293b',
+          fontSize: 12,
+          fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif',
         },
         grid: {
-          vertLines: { color: theme === 'dark' ? '#374151' : '#e5e7eb' },
-          horzLines: { color: theme === 'dark' ? '#374151' : '#e5e7eb' },
+          vertLines: { 
+            color: theme === 'dark' ? '#1e293b' : '#f1f5f9',
+            style: LightweightChartsModule.LineStyle.Dotted,
+          },
+          horzLines: { 
+            color: theme === 'dark' ? '#1e293b' : '#f1f5f9',
+            style: LightweightChartsModule.LineStyle.Dotted,
+          },
         },
         crosshair: {
           mode: LightweightChartsModule.CrosshairMode.Normal,
+          vertLine: {
+            color: theme === 'dark' ? '#64748b' : '#475569',
+            width: 1,
+            style: LightweightChartsModule.LineStyle.Solid,
+            labelBackgroundColor: theme === 'dark' ? '#334155' : '#e2e8f0',
+          },
+          horzLine: {
+            color: theme === 'dark' ? '#64748b' : '#475569',
+            width: 1,
+            style: LightweightChartsModule.LineStyle.Solid,
+            labelBackgroundColor: theme === 'dark' ? '#334155' : '#e2e8f0',
+          },
         },
         rightPriceScale: {
-          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+          borderColor: theme === 'dark' ? '#334155' : '#cbd5e1',
+          textColor: theme === 'dark' ? '#cbd5e1' : '#475569',
+          autoScale: true,
+          scaleMargins: {
+            top: 0.1,
+            bottom: 0.1,
+          },
+          borderVisible: true,
+          entireTextOnly: true,
         },
         timeScale: {
-          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+          borderColor: theme === 'dark' ? '#334155' : '#cbd5e1',
+          textColor: theme === 'dark' ? '#cbd5e1' : '#475569',
+          borderVisible: true,
+          timeVisible: true,
+          secondsVisible: false,
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: true,
+        },
+        handleScale: {
+          axisPressedMouseMove: true,
+          mouseWheel: true,
+          pinch: true,
         },
       })
 
+      // Debug chart object for troubleshooting
+      console.log('Chart creation debug:', {
+        chartExists: !!chart,
+        chartType: typeof chart,
+        chartConstructor: chart?.constructor?.name,
+        hasAddCandlestickSeries: !!chart?.addCandlestickSeries,
+        addCandlestickSeriesType: typeof chart?.addCandlestickSeries,
+        chartMethods: chart ? Object.getOwnPropertyNames(chart).filter(prop => typeof chart[prop] === 'function').slice(0, 10) : [],
+        chartPrototypeMethods: chart ? Object.getOwnPropertyNames(Object.getPrototypeOf(chart)).filter(prop => typeof chart[prop] === 'function').slice(0, 10) : []
+      })
+
+      // Validate chart was created successfully
+      if (!chart) {
+        throw new Error('Chart creation failed - createChart returned null/undefined')
+      }
+
+      if (typeof chart.addCandlestickSeries !== 'function') {
+        throw new Error(`Chart creation failed - addCandlestickSeries method not found. Available methods: ${Object.getOwnPropertyNames(chart).filter(prop => typeof chart[prop] === 'function').join(', ')}`)
+      }
+
       chartRef.current = chart
 
-      // Create candlestick series
-      const candlestickSeries = chart.addSeries(LightweightChartsModule.CandlestickSeries, {
-        upColor: '#22c55e',
-        downColor: '#ef4444',
-        borderDownColor: '#ef4444',
-        borderUpColor: '#22c55e',
-        wickDownColor: '#ef4444',
-        wickUpColor: '#22c55e',
+      // Create professional candlestick series
+      const candlestickSeries = chart.addCandlestickSeries({
+        upColor: '#10b981',        // Professional green
+        downColor: '#f59e0b',      // Professional amber (better than red)
+        borderDownColor: '#d97706', // Darker amber border
+        borderUpColor: '#059669',   // Darker green border
+        wickDownColor: '#d97706',   // Darker amber wick
+        wickUpColor: '#059669',     // Darker green wick
+        priceFormat: {
+          type: 'price',
+          precision: 2,
+          minMove: 0.01,
+        },
+        borderVisible: true,
+        wickVisible: true,
+        priceLineVisible: true,
+        lastValueVisible: true,
+        title: symbol,
       })
 
       seriesRef.current = candlestickSeries
 
-      // Convert and set data
-      const chartData = marketData.data.map(item => ({
-        time: Math.floor(item.timestamp / 1000),
-        open: item.open,
-        high: item.high,
-        low: item.low,
-        close: item.close,
-      }))
+      // Convert and set data with validation
+      const chartData = marketData.data
+        .filter(item => item && typeof item.timestamp === 'number' && 
+                       typeof item.open === 'number' && 
+                       typeof item.high === 'number' && 
+                       typeof item.low === 'number' && 
+                       typeof item.close === 'number')
+        .map(item => ({
+          time: Math.floor(item.timestamp / 1000),
+          open: Number(item.open.toFixed(6)),
+          high: Number(item.high.toFixed(6)),
+          low: Number(item.low.toFixed(6)),
+          close: Number(item.close.toFixed(6)),
+        }))
+        .sort((a, b) => a.time - b.time) // Ensure chronological order
+
+      if (chartData.length === 0) {
+        throw new Error('No valid chart data after processing')
+      }
 
       candlestickSeries.setData(chartData)
       chart.timeScale().fitContent()
 
-      // Add trade markers if provided
+      // Add professional trade markers and price lines if provided
       if (trade && showTradeMarkers) {
         setTimeout(() => {
           try {
             const markers = []
-
-            // Entry marker
             const entryTime = Math.floor(trade.entryDate.getTime() / 1000)
+            
+            // Determine precision based on price level (for professional display)
+            const getPrecision = (price: number) => {
+              if (price < 1) return 4
+              if (price < 10) return 3
+              if (price < 100) return 2
+              if (price < 1000) return 1
+              return 0
+            }
+
+            const entryPrecision = getPrecision(trade.entryPrice)
+            
+            // Professional entry marker
             markers.push({
               time: entryTime,
-              position: 'belowBar' as const,
-              color: trade.side === 'LONG' ? '#22c55e' : '#3b82f6',
-              shape: 'arrowUp' as const,
-              text: `Entry: $${trade.entryPrice.toFixed(2)}`,
+              position: trade.side === 'LONG' ? 'belowBar' as const : 'aboveBar' as const,
+              color: trade.side === 'LONG' ? '#10b981' : '#3b82f6', // Green for long, blue for short
+              shape: trade.side === 'LONG' ? 'arrowUp' as const : 'arrowDown' as const,
+              text: `${trade.side} Entry\n$${trade.entryPrice.toFixed(entryPrecision)}`,
+              size: 2,
             })
 
-            // Exit marker if available
+            // Add entry price line
+            candlestickSeries.createPriceLine({
+              price: trade.entryPrice,
+              color: trade.side === 'LONG' ? '#10b981' : '#3b82f6',
+              lineWidth: 2,
+              lineStyle: LightweightChartsModule.LineStyle.Dashed,
+              axisLabelVisible: true,
+              title: `Entry: $${trade.entryPrice.toFixed(entryPrecision)}`,
+              lineVisible: true,
+            })
+
+            // Exit marker and price line if available
             if (trade.exitDate && trade.exitPrice) {
               const exitTime = Math.floor(trade.exitDate.getTime() / 1000)
+              const exitPrecision = getPrecision(trade.exitPrice)
               const isProfit = trade.side === 'LONG' 
                 ? trade.exitPrice > trade.entryPrice 
                 : trade.exitPrice < trade.entryPrice
 
+              // Calculate P&L for display
+              const pnl = trade.side === 'LONG'
+                ? (trade.exitPrice - trade.entryPrice) * trade.quantity
+                : (trade.entryPrice - trade.exitPrice) * trade.quantity
+              
+              const pnlText = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`
+
               markers.push({
                 time: exitTime,
-                position: 'aboveBar' as const,
-                color: isProfit ? '#22c55e' : '#ef4444',
-                shape: 'arrowDown' as const,
-                text: `Exit: $${trade.exitPrice.toFixed(2)}`,
+                position: trade.side === 'LONG' ? 'aboveBar' as const : 'belowBar' as const,
+                color: isProfit ? '#10b981' : '#f59e0b',
+                shape: trade.side === 'LONG' ? 'arrowDown' as const : 'arrowUp' as const,
+                text: `Exit\n$${trade.exitPrice.toFixed(exitPrecision)}\n${pnlText}`,
+                size: 2,
               })
+
+              // Add exit price line
+              candlestickSeries.createPriceLine({
+                price: trade.exitPrice,
+                color: isProfit ? '#10b981' : '#f59e0b',
+                lineWidth: 2,
+                lineStyle: LightweightChartsModule.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: `Exit: $${trade.exitPrice.toFixed(exitPrecision)} (${pnlText})`,
+                lineVisible: true,
+              })
+
+              // Add a subtle fill area between entry and exit if they're visible
+              if (Math.abs(exitTime - entryTime) < 30 * 24 * 60 * 60) { // Within 30 days
+                try {
+                  const fillColor = isProfit 
+                    ? 'rgba(16, 185, 129, 0.1)'  // Light green
+                    : 'rgba(245, 158, 11, 0.1)'  // Light amber
+                  
+                  // This creates a visual connection between entry and exit
+                  // Note: TradingView Lightweight Charts doesn't support area fills between specific points
+                  // But we can create a more prominent visual effect with the price lines
+                } catch (fillError) {
+                  // Continue without fill effect
+                }
+              }
             }
 
+            // Set all markers at once
             candlestickSeries.setMarkers(markers)
+            
           } catch (markersError) {
+            console.warn('Failed to add trade markers:', markersError)
             // Continue without markers if they fail
           }
-        }, 50)
+        }, 100) // Slightly longer delay to ensure chart is fully rendered
       }
 
       // Call onLoad callback
@@ -234,7 +434,15 @@ function FastLightweightChart({
       }
 
     } catch (error) {
-      setError('Failed to initialize chart')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('Chart initialization error:', error, {
+        symbol,
+        marketDataAvailable: !!marketData,
+        dataLength: marketData?.data?.length || 0,
+        libraryLoaded: !!LightweightChartsModule,
+        createChartAvailable: !!createChart
+      })
+      setError(`Chart initialization failed: ${errorMessage}`)
     }
 
     // Cleanup function

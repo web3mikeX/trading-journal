@@ -76,7 +76,10 @@
       "Bash(time curl:*)",
       "Bash(mkdir:*)",
       "Bash(set PORT=3000)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "Bash(set NODE_OPTIONS=--max-old-space-size=8192)",
+      "Bash(set NODE_OPTIONS=--max-old-space-size=4096 --no-experimental-worker)",
+      "Bash(del check-user.js)"
     ],
     "deny": []
   }

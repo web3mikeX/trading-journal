@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const symbol = searchParams.get('symbol')
     const days = parseInt(searchParams.get('days') || '30')
     const preferReal = searchParams.get('preferReal') !== 'false'
+    const interval = searchParams.get('interval') || '1d'
     
     if (!symbol) {
       return NextResponse.json({ 
@@ -21,10 +22,10 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
     
-    console.log(`Enhanced market data request: ${symbol}, ${days} days, preferReal: ${preferReal}`)
+    console.log(`Enhanced market data request: ${symbol}, ${days} days, ${interval} interval, preferReal: ${preferReal}`)
     
-    // Get enhanced market data
-    const marketData = await getEnhancedMarketData(symbol, days, preferReal)
+    // Get enhanced market data with interval support
+    const marketData = await getEnhancedMarketData(symbol, days, preferReal, undefined, interval)
     
     // Add additional metadata
     const response = {
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest) {
       requestParams: {
         symbol,
         days,
-        preferReal
+        preferReal,
+        interval
       },
       dataStats: {
         dataPoints: marketData.data.length,

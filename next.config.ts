@@ -8,42 +8,67 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   serverExternalPackages: ['@prisma/client', 'prisma'],
-  reactStrictMode: false, // Disable strict mode for WSL fix
+  reactStrictMode: false,
   
-  // Fix for WSL path resolution issues
-  webpack: (config: any) => {
-    // Resolve symlinks to prevent module resolution issues
+  
+  // Windows compatibility fixes with complete worker disabling
+  webpack: (config: any, { dev, isServer }) => {
+    // Fix Windows path issues
     config.resolve.symlinks = false;
     
-    // Fix for mixed WSL/Windows paths
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: ['**/node_modules', '**/.git', '**/.next'],
+    // Completely disable caching to avoid worker issues
+    config.cache = false;
+    
+    // Fix path separators for Windows
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': require('path').resolve(__dirname, './src'),
     };
     
-    // Optimize chunk splitting for lightweight-charts
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        ...config.optimization.splitChunks,
-        cacheGroups: {
-          ...config.optimization.splitChunks?.cacheGroups,
-          lightweightCharts: {
-            test: /[\\/]node_modules[\\/]lightweight-charts[\\/]/,
-            name: 'lightweight-charts',
-            chunks: 'all',
-            priority: 10,
-          },
-        },
-      },
+    // Better Windows compatibility
+    config.watchOptions = {
+      poll: 1000,
+      aggregateTimeout: 300,
     };
+    
+    // Force single-threaded compilation
+    config.parallelism = 1;
+    
+    // Disable ALL optimization to prevent worker spawning
+    config.optimization = {
+      minimize: false,
+      splitChunks: false,
+      removeAvailableModules: false,
+      removeEmptyChunks: false,
+      mergeDuplicateChunks: false,
+      concatenateModules: false,
+      flagIncludedChunks: false,
+      providedExports: false,
+      usedExports: false,
+      sideEffects: false,
+    };
+    
+    // Remove any worker-related plugins
+    if (config.plugins) {
+      config.plugins = config.plugins.filter((plugin: any) => {
+        const pluginName = plugin.constructor.name;
+        return !pluginName.includes('Worker') && 
+               !pluginName.includes('Thread') &&
+               !pluginName.includes('Terser');
+      });
+    }
     
     return config;
   },
   
-  // Additional experimental flags for stability
   experimental: {
-    forceSwcTransforms: true,
+    workerThreads: false,
+    cpus: 1,
+  },
+  
+  // Force single process mode and disable all caching
+  env: {
+    NEXT_DISABLE_CACHE: '1',
   },
   
   // Disable static optimization for pages with hydration issues
